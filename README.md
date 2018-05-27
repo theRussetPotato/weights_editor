@@ -22,6 +22,8 @@ import weights_editor
 weights_editor.run()
 ```
 
+If you prefer to manually install it then simply copy the `weights_editor_tool` directory to wherever your Python path is pointing to.
+
 ## Dependencies
 
 There's no need to install any extra libraries as this tool uses all native Python modules that ship with Maya.
