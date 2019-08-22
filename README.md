@@ -18,7 +18,7 @@ If you chose the option to add a shelf button then Maya needs to restart in orde
 After installation you can immediately test if it's working ok by executing the following in the script editor to run the tool:
 
 ```
-import weights_editor
+from weights_editor_tool import weights_editor
 weights_editor.run()
 ```
 
