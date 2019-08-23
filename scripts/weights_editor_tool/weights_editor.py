@@ -235,7 +235,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         # Any other keys will give focus to Maya
         self.accept_keys = [ord(char) for char in [">", "<", " ", "S", "E", "A", "R"]]
         
-        self.settings_path = os.path.join(os.getenv("HOME"), "maya", "_userSettings", "weights_editor.json")
+        self.settings_path = os.path.join(os.getenv("HOME"), "maya", "weights_editor.json")
         
         self.create_gui()
         self.setup_gui()
@@ -414,9 +414,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
             
             preset_button = QtWidgets.QPushButton("{0}".format(value), parent=self.central_widget)
             preset_button.setMinimumWidth(50)
-            preset_button.setStyleSheet("QPushButton {background-color:rgb(%s, %s, %s)}" % (button_color.red(),
-                                                                                            button_color.green(),
-                                                                                            button_color.blue()))
+            preset_button.setStyleSheet("QPushButton {background-color:rgb(%s, %s, %s)}" % (
+                button_color.red(),
+                button_color.green(),
+                button_color.blue()))
             if value > 0:
                 tooltip = "Add {0} on selected cells.".format(value)
             else:
@@ -1075,7 +1076,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
                 self.load_table_selection(selection_data)
             
             self.resize_columns()
-        
+
+        utils.toggle_display_colors(
+            current_obj,
+            not self.hide_colors_button.isChecked() and cmds.selectMode(q=True, component=True))
+
         self.ignore_cell_selection_event = False
     
     def edit_weights(self, indexes, input_value, mode):
@@ -1099,7 +1104,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
         for index in indexes:
             row = index.row()
             column = index.column()
-            
+
+            if column > len(self.display_infs) - 1:
+                continue
+
             vert_index = self.vert_indexes[row]
             inf_name = self.display_infs[column]
             weight_data = new_skin_data[vert_index]["weights"]
@@ -1589,7 +1597,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
     
     def hide_colors_on_clicked(self):
         current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is not None and self._in_component_mode:
+        if current_obj is not None and cmds.selectMode(q=True, component=True):
             hide_colors = self.hide_colors_button.isChecked()
             utils.toggle_display_colors(current_obj, not hide_colors)
     
@@ -1814,6 +1822,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
 
 def run():
+    global tool
     tool = WeightsEditor()
     tool.show()
     return tool
