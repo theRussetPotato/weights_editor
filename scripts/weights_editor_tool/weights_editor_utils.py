@@ -1,19 +1,81 @@
+import sys
 import random
+import shiboken2
 
 import maya.cmds as cmds
+import maya.mel as mel
 import maya.OpenMaya as OpenMaya
+import maya.OpenMayaUI as OpenMayaUI
 import maya.OpenMayaAnim as OpenMayaAnim
 
-from resources import variables
+from PySide2 import QtCore
+from PySide2 import QtGui
+from PySide2 import QtWidgets
 
-if variables.qt_version > 4:
-    from PySide2 import QtGui
-    from PySide2 import QtCore
-    from PySide2 import QtWidgets
-else:
-    from PySide import QtGui
-    from PySide import QtCore
-    QtWidgets = QtGui
+
+if sys.version_info > (3, 0):
+    def long(value):
+        return int(value)
+
+
+COLOR_SET = "weightsEditorCreateColorSet"
+POLY_COLOR_PER_VERT = "weightsEditorPolyColorPerVertex"
+
+
+def show_error_msg(title, msg, parent):
+    QtWidgets.QMessageBox.critical(parent, title, msg)
+
+
+def get_maya_window():
+    ptr = OpenMayaUI.MQtUtil.mainWindow()
+    return shiboken2.wrapInstance(long(ptr), QtWidgets.QWidget)
+
+
+def create_shortcut(key_sequence, callback):
+    shortcut = QtWidgets.QShortcut(key_sequence, get_maya_window())
+    shortcut.setContext(QtCore.Qt.ApplicationShortcut)
+    shortcut.activated.connect(callback)
+    return shortcut
+
+
+def wrap_layout(widgets, orientation=QtCore.Qt.Vertical, spacing=None, margins=None, parent=None):
+    if orientation == QtCore.Qt.Horizontal:
+        new_layout = QtWidgets.QHBoxLayout()
+    else:
+        new_layout = QtWidgets.QVBoxLayout()
+
+    for widget in widgets:
+        if widget == "stretch":
+            new_layout.addStretch()
+        elif widget == "splitter":
+            frame = QtWidgets.QFrame(parent=parent)
+            frame.setStyleSheet("QFrame {background-color: rgb(50, 50, 50);}")
+
+            if orientation == QtCore.Qt.Vertical:
+                frame.setFixedHeight(2)
+            else:
+                frame.setFixedWidth(2)
+
+            new_layout.addWidget(frame)
+        elif type(widget) == int:
+            new_layout.addSpacing(widget)
+        else:
+            if QtCore.QObject.isWidgetType(widget):
+                new_layout.addWidget(widget)
+            else:
+                new_layout.addLayout(widget)
+
+    if spacing is not None:
+        new_layout.setSpacing(spacing)
+
+    if margins is not None:
+        new_layout.setContentsMargins(*margins)
+
+    return new_layout
+
+
+def is_in_component_mode():
+    return cmds.selectMode(q=True, component=True) or bool(cmds.ls(hilite=True))
 
 
 def get_selected_mesh():
@@ -27,9 +89,7 @@ def get_selected_mesh():
         shapes = cmds.ls(sl=True, objectsOnly=True)
         if shapes:
             sel = cmds.listRelatives(shapes[0], parent=True)
-    
-    obj = None
-    
+
     if not sel:
         return
     
@@ -65,7 +125,6 @@ def is_curve(obj):
         return True
     
     shapes = cmds.listRelatives(obj, f=True, shapes=True, type="nurbsCurve")
-    
     if shapes:
         return True
     
@@ -91,8 +150,8 @@ def remap_range(old_min, old_max, new_min, new_max, old_value):
     """
     Converts a value from one range to another.
     """
-    old_range = old_max-old_min
-    new_range = new_max-new_min
+    old_range = old_max - old_min
+    new_range = new_max - new_min
     return ((old_value - old_min) * new_range / old_range) + new_min
 
 
@@ -111,10 +170,9 @@ def lerp_color(start_color, end_color, blend_value):
     Returns:
         A QColor.
     """
-    r = start_color.red()+(end_color.red()-start_color.red())*blend_value
-    g = start_color.green()+(end_color.green()-start_color.green())*blend_value
-    b = start_color.blue()+(end_color.blue()-start_color.blue())*blend_value
-    
+    r = start_color.red() + (end_color.red() - start_color.red()) * blend_value
+    g = start_color.green() + (end_color.green() - start_color.green()) * blend_value
+    b = start_color.blue() + (end_color.blue() - start_color.blue()) * blend_value
     return QtGui.QColor(r, g, b)
 
 
@@ -128,18 +186,24 @@ def flatten_list_to_indexes(flatten_list):
     Returns:
         A list of integers.
     """
-    return [int(word[word.index("[")+1:-1]) 
-            for word in flatten_list]
+    return [
+        int(word[word.index("[") + 1: -1])
+        for word in flatten_list
+    ]
 
 
-def get_selected_vertexes(obj):
+def get_vert_indexes(obj, selection=True):
     """
     Gets and returns selected vertexes from the supplied object.
     """
+    kwargs = {"fl": True}
+    if selection:
+        kwargs["sl"] = True
+
     if is_curve(obj):
-        flatten_list = cmds.ls("{0}.cv[*]".format(obj), sl=True, fl=True)
+        flatten_list = cmds.ls("{0}.cv[*]".format(obj), **kwargs)
     else:
-        flatten_list = cmds.ls("{0}.vtx[*]".format(obj), sl=True, fl=True)
+        flatten_list = cmds.ls("{0}.vtx[*]".format(obj), **kwargs)
     
     return flatten_list_to_indexes(flatten_list)
 
@@ -183,8 +247,8 @@ def switch_to_color_set(obj):
     
     dif_color_sets = list(new_color_sets.difference(old_color_sets))
     if dif_color_sets:
-        cmds.addAttr(dif_color_sets[0], ln="weightsEditorCreateColorSet", dt="string")
-        cmds.rename(dif_color_sets[0], "weightsEditorCreateColorSet")
+        cmds.addAttr(dif_color_sets[0], ln=COLOR_SET, dt="string")
+        cmds.rename(dif_color_sets[0], COLOR_SET)
 
 
 def toggle_display_colors(obj, enabled):
@@ -196,7 +260,9 @@ def toggle_display_colors(obj, enabled):
         enabled(bool)
     """
     if obj is not None and cmds.objExists(obj) and cmds.listRelatives(obj, f=True, shapes=True, type="mesh"):
-        cmds.setAttr("{0}.displayColors".format(obj), enabled)
+        state = cmds.getAttr("{0}.displayColors".format(obj))
+        if state != enabled:
+            cmds.setAttr("{0}.displayColors".format(obj), enabled)
 
 
 def get_influence_ids(skin_cluster):
@@ -277,7 +343,7 @@ def get_skin_data(skin_cluster):
             try:
                 inf_name = inf_ids[inf_id]
                 vert_weights[inf_name] = inf_plug.asDouble()
-            except KeyError as e:
+            except KeyError:
                 pass
         
         data["weights"] = vert_weights
@@ -301,7 +367,8 @@ def update_weight_value(weight_data, inf_name, new_value):
         inf_name(string): Influence to update.
         new_value(float): A number between 0 and 1.0.
     """
-    assert new_value >= 0 and new_value <= 1, "Value needs to be within 0.0 to 1.0."
+    if new_value < 0 or new_value > 1:
+        raise ValueError("Value needs to be within 0.0 to 1.0.")
     
     # Ignore if trying to set to a locked influence
     is_inf_locked = cmds.getAttr("{0}.lockInfluenceWeights".format(inf_name))
@@ -326,7 +393,7 @@ def update_weight_value(weight_data, inf_name, new_value):
         new_value = min(new_value, total)
         
         # Distribute weights
-        dif = (total-new_value) / (total-weight_data[inf_name])
+        dif = (total - new_value) / (total - weight_data[inf_name])
         
         for inf in weight_data:
             is_locked = cmds.getAttr("{0}.lockInfluenceWeights".format(inf))
@@ -337,15 +404,15 @@ def update_weight_value(weight_data, inf_name, new_value):
                 weight_data[inf] = new_value
             else:
                 weight_data[inf] *= dif
-    
-    # Remove all influences with 0 value
-    for key in weight_data.keys():
+
+    for key in list(weight_data.keys()):
         if is_close(0.0, weight_data[key]):
             weight_data.pop(key)
-    
+
     # Force weight to be 1 if there's only one influence left
     if len(weight_data) == 1:
-        weight_data[weight_data.keys()[0]] = 1.0
+        key = list(weight_data.keys())[0]
+        weight_data[key] = 1.0
 
 
 def get_weight_color(weight, start_color=[0, 0, 1], mid_color=[0, 1, 0], end_color=[1, 0, 0], full_color=[1.0, 1.0, 1.0]):
@@ -366,15 +433,16 @@ def get_weight_color(weight, start_color=[0, 0, 1], mid_color=[0, 1, 0], end_col
     if weight == 1.0:
         r, g, b = full_color
     elif weight < 0.5:
-        w = weight*2
-        r = start_color[0] + w * (mid_color[0]-start_color[0])
-        g = start_color[1] + w * (mid_color[1]-start_color[1])
-        b = start_color[2] + w * (mid_color[2]-start_color[2])
+        w = weight * 2
+        r = start_color[0] + w * (mid_color[0] - start_color[0])
+        g = start_color[1] + w * (mid_color[1] - start_color[1])
+        b = start_color[2] + w * (mid_color[2] - start_color[2])
     else:
-        w = (weight-0.5)*2
-        r = mid_color[0] + w * (end_color[0]-mid_color[0])
-        g = mid_color[1] + w * (end_color[1]-mid_color[1])
-        b = mid_color[2] + w * (end_color[2]-mid_color[2])
+        w = (weight - 0.5) * 2
+        r = mid_color[0] + w * (end_color[0] - mid_color[0])
+        g = mid_color[1] + w * (end_color[1] - mid_color[1])
+        b = mid_color[2] + w * (end_color[2] - mid_color[2])
+
     return [r, g, b]
 
 
@@ -411,8 +479,8 @@ def apply_vert_colors(obj, colors, vert_indexes):
     
     dif_pcolor = list(new_pcolor.difference(old_pcolor))
     if dif_pcolor:
-        cmds.addAttr(dif_pcolor[0], ln="weightsEditorPolyColorPerVertex", dt="string")
-        cmds.rename(dif_pcolor[0], "weightsEditorPolyColorPerVertex")
+        cmds.addAttr(dif_pcolor[0], ln=POLY_COLOR_PER_VERT, dt="string")
+        cmds.rename(dif_pcolor[0], POLY_COLOR_PER_VERT)
 
 
 def collect_influence_colors(skin_cluster, sat=250, brightness=150):
@@ -433,19 +501,22 @@ def collect_influence_colors(skin_cluster, sat=250, brightness=150):
     
     inf_colors = {}
     
-    hue_step = 360.0/(len(infs))
+    hue_step = 360.0 / (len(infs))
+
     for i, inf in enumerate(infs):
         color = QtGui.QColor()
-        color.setHsv(hue_step*i, sat, brightness)
+        color.setHsv(hue_step * i, sat, brightness)
         color.toRgb()
-        inf_colors[inf] = [color.red()/255.0, 
-                           color.green()/255.0, 
-                           color.blue()/255.0]
+
+        inf_colors[inf] = [
+            color.red() / 255.0,
+            color.green() / 255.0,
+            color.blue() / 255.0]
     
     return inf_colors
 
 
-def display_multi_color_influence(obj, skin_cluster, skin_data, filter=[]):
+def display_multi_color_influence(obj, skin_cluster, skin_data, vert_filter=[]):
     """
     Mimics Softimage and displays all influences at once with their own unique color.
     
@@ -453,7 +524,7 @@ def display_multi_color_influence(obj, skin_cluster, skin_data, filter=[]):
         obj(string)
         skin_cluster(string)
         skin_data(dict)
-        filter(int[]): List of vertex indexes to only operate on.
+        vert_filter(int[]): List of vertex indexes to only operate on.
     
     Returns:
         A dictionary of {inf_name:[r, g, b]...}
@@ -464,21 +535,24 @@ def display_multi_color_influence(obj, skin_cluster, skin_data, filter=[]):
     vert_indexes = []
     
     for vert_index in skin_data:
-        if filter and vert_index not in filter:
+        if vert_filter and vert_index not in vert_filter:
             continue
-        
-        sorted_weights = sorted(skin_data[vert_index]["weights"].iteritems(), key=lambda(k, v):(v, k))
+
+        sorted_weights = sorted(
+            skin_data[vert_index]["weights"].items(),
+            key=lambda k_v: (k_v[1], k_v[0]))  # TODO: Not working
+
         strongest_inf, _ = sorted_weights[-1]
         picked_color = inf_colors.get(strongest_inf)
         vert_colors.append(picked_color)
         vert_indexes.append(vert_index)
-    
+
     apply_vert_colors(obj, vert_colors, vert_indexes)
     
     return inf_colors
 
 
-def display_influence(obj, skin_data, influence, color_style=0, filter=[]):
+def display_influence(obj, skin_data, influence, color_style=0, vert_filter=[]):
     """
     Colors a mesh to visualize skin data.
     
@@ -487,36 +561,46 @@ def display_influence(obj, skin_data, influence, color_style=0, filter=[]):
         skin_data(dict)
         influence(string): Name of influence to display.
         color_style(int): 0=Max theme, 1=Maya theme.
-        filter(int[]): List of vertex indexes to only operate on.
+        vert_filter(int[]): List of vertex indexes to only operate on.
     """
     if color_style == 0:
         # Max
-        low_rgb = [0.0, 0.0, 1.0]
-        mid_rgb = [0.0, 1.0, 0.0]
-        end_rgb = [1.0, 0.0, 0.0]
+        low_rgb = [0, 0, 1]
+        mid_rgb = [0, 1, 0]
+        end_rgb = [1, 0, 0]
         no_rgb = [0.05, 0.05, 0.05]
-        full_rgb = [1.0, 1.0, 1.0]
+        full_rgb = [1, 1, 1]
     elif color_style == 1:
         # Maya
-        low_rgb = [0.5, 0.0, 0.0]
-        mid_rgb = [1.0, 0.5, 0.0]
-        end_rgb = [1.0, 1.0, 0.0]
-        no_rgb = [0.0, 0.0, 0.0]
-        full_rgb = [1.0, 1.0, 1.0]
+        low_rgb = [0.5, 0, 0]
+        mid_rgb = [1, 0.5, 0]
+        end_rgb = [1, 1, 0]
+        no_rgb = [0, 0, 0]
+        full_rgb = [1, 1, 1]
+    else:
+        low_rgb = [0, 0, 0]
+        mid_rgb = [0, 0, 0]
+        end_rgb = [0, 0, 0]
+        no_rgb = [0, 0, 0]
+        full_rgb = [0, 0, 0]
     
     vert_colors = []
     vert_indexes = []
     
     for vert_index in skin_data:
-        if filter and vert_index not in filter:
+        if vert_filter and vert_index not in vert_filter:
             continue
         
         weights_data = skin_data[vert_index]["weights"]
         
         if influence in weights_data:
             weight_value = weights_data[influence]
-            rgb = get_weight_color(weight_value, start_color=low_rgb, 
-                                   mid_color=mid_rgb, end_color=end_rgb, full_color=full_rgb)
+            rgb = get_weight_color(
+                weight_value,
+                start_color=low_rgb,
+                mid_color=mid_rgb,
+                end_color=end_rgb,
+                full_color=full_rgb)
         else:
             rgb = no_rgb
         
@@ -566,18 +650,23 @@ def set_skin_weights(obj, skin_data, vert_indexes, normalize=False):
     if skin_cluster is None:
         OpenMaya.MGlobal.displayError("Unable to detect a skinCluster on {0}.".format(obj))
         return
-    
+
     # Get influence info to map with
     inf_data = get_influence_ids(skin_cluster)
-    inf_ids = inf_data.keys()
-    inf_names = inf_data.values()
+    inf_ids = list(inf_data.keys())
+    inf_names = list(inf_data.values())
     
     # Remove all existing weights
     if is_curve(obj):
-        selected_vertexes = ["{0}.cv[{1}]".format(obj, id) for id in vert_indexes]
+        plug = "{0}.cv".format(obj)
     else:
-        selected_vertexes = ["{0}.vtx[{1}]".format(obj, id) for id in vert_indexes]
-    
+        plug = "{0}.vtx".format(obj)
+
+    selected_vertexes = [
+        "{0}[{1}]".format(plug, index)
+        for index in vert_indexes
+    ]
+
     cmds.setAttr("{0}.nw".format(skin_cluster), 0)
     cmds.skinPercent(skin_cluster, selected_vertexes, prw=100, nrm=0)
     
@@ -586,8 +675,7 @@ def set_skin_weights(obj, skin_data, vert_indexes, normalize=False):
         weight_list_attr = "{0}.weightList[{1}]".format(skin_cluster, vert_index)
         for inf_name, weight_value in skin_data[vert_index]["weights"].items():
             index = inf_names.index(inf_name)
-            inf_id = inf_ids[index]
-            weight_attr = ".weights[{0}]".format(inf_id)
+            weight_attr = ".weights[{0}]".format(inf_ids[index])
             cmds.setAttr("{0}{1}".format(weight_list_attr, weight_attr), weight_value)
         
         # Apply dual-quarternions
@@ -621,16 +709,17 @@ def get_vert_neighbours(obj, vert_index):
     
     # Convert edges back to vertexes
     neighbours = set()
+
     for edge_index in edge_indexes:
         vert_string = cmds.polyInfo("{0}.e[{1}]".format(obj, edge_index), edgeToVertex=True)[0]
         for v in vert_string.split()[2:]:
-            if not v.isdigit():
-                continue
-            neighbours.add(int(v))
+            if v.isdigit():
+                neighbours.add(int(v))
+
     return list(neighbours)
 
 
-def average_by_neighbours(obj, vert_index, skin_data):
+def average_by_neighbours(obj, vert_index, skin_data, strength):
     """
     Averages weights of surrounding vertexes.
     
@@ -638,6 +727,7 @@ def average_by_neighbours(obj, vert_index, skin_data):
         obj(string)
         vert_index(int)
         skin_data(dict)
+        strength(int): A value of 0-1
     
     Returns:
         A dictionary of the new weights. {int_name:weight_value...}
@@ -648,6 +738,7 @@ def average_by_neighbours(obj, vert_index, skin_data):
     # Collect unlocked infs and total value of unlocked weights
     unlocked = []
     total = 0.0
+
     for inf in old_weights:
         is_locked = cmds.getAttr("{0}.lockInfluenceWeights".format(inf))
         if is_locked:
@@ -662,37 +753,54 @@ def average_by_neighbours(obj, vert_index, skin_data):
     
     # Add together weight of each influence from neighbours
     neighbours = get_vert_neighbours(obj, vert_index)
+
     for index in neighbours:
         for inf, value in skin_data[index]["weights"].items():
             # Ignore if locked
             if inf not in unlocked:
                 continue
             
-            # Ignore if influence doesn't already effect vertex
-            #if inf not in old_weights:
-                #continue
-            
             # Add weight
             if inf not in new_weights:
                 new_weights[inf] = 0.0
+
             new_weights[inf] += value
     
     # Get sum of all new weight values
-    total_all = sum([new_weights[inf] 
-                     for inf in new_weights 
-                     if inf in unlocked])
+    total_all = sum([
+        new_weights[inf]
+        for inf in new_weights
+        if inf in unlocked
+    ])
     
     # Average values
     if total_all:
         for inf in new_weights:
-            if inf not in unlocked:
-                continue
-            new_weights[inf] *= total/total_all
+            if inf in unlocked:
+                new_weight = new_weights[inf] * (total / total_all)
+                new_weights[inf] = old_weights[inf] + (new_weight - old_weights[inf]) * strength
     
     return new_weights
 
 
-def smooth_weights(obj, vert_indexes, skin_data, normalize_weights=True):
+def br_smooth_verts(flood=1.0, ignore_lock=True):
+    last_ctx = cmds.currentCtx()
+
+    try:
+        mel.eval("source brSmoothWeightsToolCtx;")
+        mel.eval("brSmoothWeightsToolCtx;")
+
+        cmds.brSmoothWeightsContext(
+            cmds.currentCtx(),
+            e=True,
+            affectSelected=True,
+            flood=flood,
+            ignoreLock=ignore_lock)
+    finally:
+        cmds.setToolTo(last_ctx)
+
+
+def smooth_weights(obj, vert_indexes, skin_data, strength, normalize_weights=True):
     """
     Runs an algorithm to smooth weights on supplied vertex indexes.
     
@@ -700,12 +808,14 @@ def smooth_weights(obj, vert_indexes, skin_data, normalize_weights=True):
         obj(string)
         vert_indexes(int[])
         skin_data(dict)
+        strength(int): A value of 0-1
+        normalize_weights(bool)
     """
     # Don't set new weights right away so new values don't interfere
     # when calculating other indexes.
     weights_to_set = {}
     for vert_index in vert_indexes:
-        new_weights = average_by_neighbours(obj, vert_index, skin_data)
+        new_weights = average_by_neighbours(obj, vert_index, skin_data, strength)
         weights_to_set[vert_index] = new_weights
     
     # Set weights
@@ -713,6 +823,18 @@ def smooth_weights(obj, vert_indexes, skin_data, normalize_weights=True):
         skin_data[vert_index]["weights"] = weights
     
     set_skin_weights(obj, skin_data, vert_indexes, normalize=normalize_weights)
+
+
+def mirror_skin_weights(obj, mirror_mode, mirror_inverse, surface_association, inf_association=None):
+    if inf_association is None:
+        inf_association = "closestJoint"
+
+    cmds.copySkinWeights(
+        obj,
+        mirrorMode=mirror_mode,
+        mirrorInverse=mirror_inverse,
+        surfaceAssociation=surface_association,
+        influenceAssociation=[inf_association, "closestJoint"])
 
 
 def prune_weights(obj, skin_cluster, prune_value):
@@ -741,11 +863,51 @@ def prune_weights(obj, skin_cluster, prune_value):
     return True
 
 
+def flood_weights_to_closest(mesh, skin_cluster):
+    influences = get_influence_ids(skin_cluster)
+
+    inf_positions = {
+        key: cmds.xform(inf, q=True, ws=True, t=True)
+        for key, inf in influences.items()
+    }
+
+    verts = cmds.ls("{}.vtx[*]".format(mesh), flatten=True)
+
+    vert_inf_mappings = {}
+
+    for vert_index, plug, in enumerate(verts):
+        vert_pos = cmds.pointPosition(plug, world=True)
+        vert_point = OpenMaya.MPoint(*vert_pos)
+
+        closest_inf_index = None
+        closest_inf_dist = 0
+
+        for inf_index in inf_positions:
+            inf_point = OpenMaya.MPoint(*inf_positions[inf_index])
+            dist = vert_point.distanceTo(inf_point)
+            if closest_inf_index is None or dist < closest_inf_dist:
+                closest_inf_index = inf_index
+                closest_inf_dist = dist
+
+        vert_inf_mappings[vert_index] = closest_inf_index
+
+    cmds.setAttr("{0}.nw".format(skin_cluster), 0)
+    cmds.skinPercent(skin_cluster, verts, prw=100, nrm=0)
+
+    for vert_index, inf_index in vert_inf_mappings.items():
+        weight_plug = "{0}.weightList[{1}].weights[{2}]".format(skin_cluster, vert_index, inf_index)
+        cmds.setAttr(weight_plug, 1)
+
+    cmds.setAttr("{0}.nw".format(skin_cluster), 1)
+    cmds.skinCluster(skin_cluster, e=True, forceNormalizeWeights=True)
+
+
 def delete_temp_inputs(obj):
     """
     Deletes extra inputs the tool creates to see weight colors.
     """
     inputs = cmds.ls(cmds.listHistory(obj), type=["polyColorPerVertex", "createColorSet"])
     for input in inputs:
-        if cmds.attributeQuery("weightsEditorCreateColorSet", node=input, exists=True) or cmds.attributeQuery("weightsEditorPolyColorPerVertex", node=input, exists=True):
+        if cmds.attributeQuery(COLOR_SET, node=input, exists=True) or \
+                cmds.attributeQuery(POLY_COLOR_PER_VERT, node=input, exists=True):
             cmds.delete(input)

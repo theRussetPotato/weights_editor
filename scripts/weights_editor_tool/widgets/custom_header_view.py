@@ -1,13 +1,5 @@
-from ..resources import variables
-
-if variables.qt_version > 4:
-    from PySide2 import QtGui
-    from PySide2 import QtCore
-    from PySide2 import QtWidgets
-else:
-    from PySide import QtGui
-    from PySide import QtCore
-    QtWidgets = QtGui
+from PySide2 import QtCore
+from PySide2 import QtWidgets
 
 
 class CustomHeaderView(QtWidgets.QHeaderView):
@@ -20,8 +12,8 @@ class CustomHeaderView(QtWidgets.QHeaderView):
     header_middle_clicked = QtCore.Signal(int)
     header_right_clicked = QtCore.Signal(int)
     
-    def __init__(self, parent=None):
-        super(CustomHeaderView, self).__init__(QtCore.Qt.Horizontal, parent)
+    def __init__(self, orientation, parent=None):
+        super(CustomHeaderView, self).__init__(orientation, parent)
         self.last_index = 0
     
     def mousePressEvent(self, event):

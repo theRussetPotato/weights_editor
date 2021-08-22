@@ -1,13 +1,5 @@
-from ..resources import variables
-
-if variables.qt_version > 4:
-    from PySide2 import QtGui
-    from PySide2 import QtCore
-    from PySide2 import QtWidgets
-else:
-    from PySide import QtGui
-    from PySide import QtCore
-    QtWidgets = QtGui
+from PySide2 import QtCore
+from PySide2 import QtWidgets
 
 
 class CustomDoubleSpinbox(QtWidgets.QDoubleSpinBox):
@@ -25,5 +17,5 @@ class CustomDoubleSpinbox(QtWidgets.QDoubleSpinBox):
         QtWidgets.QDoubleSpinBox.keyPressEvent(self, event)
         
         key_code = event.key()
-        if key_code == 16777221 or key_code == 16777220: # Enter key
+        if key_code == QtCore.Qt.Key_Enter or key_code == QtCore.Qt.Key_Return:
             self.enter_pressed.emit(self.value())
