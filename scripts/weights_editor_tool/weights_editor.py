@@ -43,7 +43,7 @@ from weights_editor_tool.widgets import about_dialog
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "2.0.0"
+    version = "2.0.1"
     instance = None
     cb_selection_changed = None
     shortcuts = []
@@ -686,7 +686,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         for hotkey in self.hotkeys:
             self.__class__.shortcuts.append(
                 utils.create_shortcut(
-                    hotkey.key_code(), hotkey.func))
+                    QtGui.QKeySequence(hotkey.key_code()), hotkey.func))
 
         self.update_tooltips()
 
@@ -1655,9 +1655,9 @@ class WeightsEditor(QtWidgets.QMainWindow):
         dialog.deleteLater()
 
     def toggle_view_on_toggled(self, enabled):
+        self.limit_warning_label.setVisible(False)
         self.weights_list.setVisible(not enabled)
         self.weights_table.setVisible(enabled)
-        self.limit_warning_label.setVisible(enabled)
 
         if enabled:
             self.toggle_view_button.setText("TABLE")
