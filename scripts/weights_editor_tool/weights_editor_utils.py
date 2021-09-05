@@ -31,6 +31,14 @@ def get_maya_window():
     return shiboken2.wrapInstance(long(ptr), QtWidgets.QWidget)
 
 
+def convert_version_string(ver_str):
+    return tuple(map(int, ver_str.lstrip("v").split(".")))
+
+
+def is_version_string_greater(ver_str_1, ver_str_2):
+    return convert_version_string(ver_str_1) > convert_version_string(ver_str_2)
+
+
 def create_shortcut(key_sequence, callback):
     shortcut = QtWidgets.QShortcut(key_sequence, get_maya_window())
     shortcut.setContext(QtCore.Qt.ApplicationShortcut)
@@ -86,13 +94,13 @@ def get_selected_mesh():
     sel = cmds.ls(sl=True, transforms=True)
     
     if not sel:
-        shapes = cmds.ls(sl=True, objectsOnly=True)
+        shapes = cmds.ls(sl=True, l=True, objectsOnly=True)
         if shapes:
-            sel = cmds.listRelatives(shapes[0], parent=True)
+            sel = cmds.listRelatives(shapes[0], f=True, parent=True)
 
     if not sel:
         return
-    
+
     if not cmds.listRelatives(sel[0], shapes=True, type="mesh"):
         if not cmds.listRelatives(sel[0], shapes=True, type="nurbsCurve"):
             return
@@ -538,13 +546,15 @@ def display_multi_color_influence(obj, skin_cluster, skin_data, vert_filter=[]):
         if vert_filter and vert_index not in vert_filter:
             continue
 
-        sorted_weights = sorted(
-            skin_data[vert_index]["weights"].items(),
-            key=lambda k_v: (k_v[1], k_v[0]))  # TODO: Not working
+        final_color = [0, 0, 0]
 
-        strongest_inf, _ = sorted_weights[-1]
-        picked_color = inf_colors.get(strongest_inf)
-        vert_colors.append(picked_color)
+        for inf, weight in skin_data[vert_index]["weights"].items():
+            inf_color = inf_colors.get(inf)
+            final_color[0] += inf_color[0] * weight
+            final_color[1] += inf_color[1] * weight
+            final_color[2] += inf_color[2] * weight
+
+        vert_colors.append(final_color)
         vert_indexes.append(vert_index)
 
     apply_vert_colors(obj, vert_colors, vert_indexes)

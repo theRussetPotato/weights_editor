@@ -15,8 +15,9 @@ class AboutDialog(QtWidgets.QDialog):
     def wrap_groupbox(self, title, msg):
         label = QtWidgets.QLabel(msg, parent=self)
         label.setWordWrap(True)
-        label.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        label.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse | QtCore.Qt.LinksAccessibleByMouse)
         label.setCursor(QtGui.QCursor(QtCore.Qt.IBeamCursor))
+        label.setOpenExternalLinks(True)
 
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(label)
@@ -40,7 +41,7 @@ class AboutDialog(QtWidgets.QDialog):
         self.inf_list_tips_groupbox = self.wrap_groupbox(
             "Using influence list",
             "- Press space to toggle locks on selected influences<br>"
-            "- Middle-click to display that influence")
+            "- Middle-click header to display that influence")
 
         self.developed_by_groupbox = self.wrap_groupbox(
             "Developed by",
@@ -52,8 +53,7 @@ class AboutDialog(QtWidgets.QDialog):
 
         self.bugs_groupbox = self.wrap_groupbox(
             "Bugs and features",
-            "Please report any bugs on its GitHub issues page:<br>"
-            "<font color=\"red\"><b>github.com/theRussetPotato/weights_editor</b></color>")
+            "Please report any bugs on its <b><a href='https://www.github.com/theRussetPotato/weights_editor/issues'>GitHub issues page</a></b>")
 
         self.scroll_layout = QtWidgets.QVBoxLayout()
         self.scroll_layout.addWidget(self.table_tips_groupbox)

@@ -112,8 +112,9 @@ class InfListModel(QtGui.QStandardItemModel):
         
         self.editor_inst = editor_inst
         
-        resources_dir =  os.path.abspath(os.path.join(__file__, "..", "..", "resources", "images"))
+        resources_dir = os.path.abspath(os.path.join(__file__, "..", "..", "resources", "images"))
         self.lock_icon = QtGui.QIcon(os.path.join(resources_dir, "inf_lock.png"))
+        self.joint_icon = QtGui.QIcon(os.path.join(resources_dir, "joint.png"))
 
         self.size_hint = QtCore.QSize(1, 35)
 
@@ -131,7 +132,7 @@ class InfListModel(QtGui.QStandardItemModel):
         item = self.itemFromIndex(index)
         inf_name = item.text()
         
-        if role ==  QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole:
             # Show influence's name.
             return inf_name
         elif role == QtCore.Qt.BackgroundColorRole:
@@ -151,10 +152,14 @@ class InfListModel(QtGui.QStandardItemModel):
         elif role == QtCore.Qt.SizeHintRole:
             return self.size_hint
         elif role == QtCore.Qt.DecorationRole:
-            # Show locked influence icons.
+            icon = self.joint_icon
+
             if inf_name in self.editor_inst.infs:
+                # Show locked influence icons.
                 inf_index = self.editor_inst.infs.index(inf_name)
                 if self.editor_inst.locks[inf_index]:
-                    return self.lock_icon
+                    icon = self.lock_icon
+
+            return icon
         elif role == QtCore.Qt.ToolTipRole:
             return inf_name

@@ -6,6 +6,7 @@ from PySide2 import QtGui
 from PySide2 import QtCore
 from PySide2 import QtWidgets
 
+from weights_editor_tool.enums import ColorTheme
 from weights_editor_tool.widgets import custom_header_view
 
 
@@ -185,14 +186,15 @@ class AbstractWeightsView(QtWidgets.QTableView):
         """
         self.reset_color_headers()
 
-        for index in range(count):
-            header_name = self.table_model.get_inf(index)
-            rgb = self.editor_inst.inf_colors.get(header_name)
+        if self.editor_inst.color_style == ColorTheme.Softimage:
+            for index in range(count):
+                header_name = self.table_model.get_inf(index)
+                rgb = self.editor_inst.inf_colors.get(header_name)
 
-            color = None
-            if rgb is not None:
-                color = QtGui.QColor.fromRgbF(*rgb)
-            self.table_model.header_colors.append(color)
+                color = None
+                if rgb is not None:
+                    color = QtGui.QColor.fromRgbF(*rgb)
+                self.table_model.header_colors.append(color)
 
     def get_selected_indexes(self):
         return [

@@ -41,20 +41,16 @@ class CommandEditWeights(QtWidgets.QUndoCommand):
             return
 
         weights_view = self.editor_cls.instance.get_active_weights_view()
-
         old_column_count = weights_view.horizontalHeader().count()
-
         weights_view.begin_update()
 
         self.editor_cls.instance.skin_data = self.new_skin_data
-
         utils.set_skin_weights(self.obj, self.new_skin_data, self.vert_indexes, normalize=True)
-
         self.editor_cls.instance.update_vert_colors(vert_filter=self.vert_indexes)
-
         self.editor_cls.instance.collect_display_infs()
 
         weights_view.load_table_selection(self.table_selection)
+        weights_view.color_headers()
 
         weights_view.end_update()
 
@@ -66,19 +62,16 @@ class CommandEditWeights(QtWidgets.QUndoCommand):
             return
 
         weights_view = self.editor_cls.instance.get_active_weights_view()
-
         old_column_count = weights_view.horizontalHeader().count()
-
         weights_view.begin_update()
 
         self.editor_cls.instance.skin_data = self.old_skin_data
         utils.set_skin_weights(self.obj, self.old_skin_data, self.vert_indexes, normalize=True)
-
         self.editor_cls.instance.update_vert_colors(vert_filter=self.vert_indexes)
-
         self.editor_cls.instance.collect_display_infs()
 
         weights_view.load_table_selection(self.table_selection)
+        weights_view.color_headers()
 
         weights_view.end_update()
 

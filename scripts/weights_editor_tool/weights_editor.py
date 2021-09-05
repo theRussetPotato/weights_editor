@@ -17,7 +17,9 @@ Example of usage:
 import os
 import copy
 import json
+import traceback
 import shiboken2
+import webbrowser
 from functools import partial
 
 import maya.cmds as cmds
@@ -27,6 +29,7 @@ import maya.OpenMaya as OpenMaya
 from PySide2 import QtGui
 from PySide2 import QtCore
 from PySide2 import QtWidgets
+from PySide2 import QtNetwork
 
 from weights_editor_tool.enums import ColorTheme, WeightOperation, SmoothOperation
 from weights_editor_tool import weights_editor_utils as utils
@@ -43,7 +46,7 @@ from weights_editor_tool.widgets import about_dialog
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "2.0.1"
+    version = "1.1.0"
     instance = None
     cb_selection_changed = None
     shortcuts = []
@@ -78,7 +81,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.ignore_cell_selection_event = False
         self.in_component_mode = utils.is_in_component_mode()
         self.settings_path = os.path.join(os.getenv("HOME"), "maya", "weights_editor.json")
-        self.add_preset_values = [-0.75, -0.5, -0.25, -0.1, 0.1, 0.25, 0.5, 0.75]
+        self.add_preset_values = [-0.2, -0.1, -0.05, -0.01, 0.01, 0.05, 0.1, 0.2]
         self.scale_preset_values = [-50, -25, -10, -5, 5, 10, 25, 50]
         self.set_preset_values = [0.0, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
 
@@ -111,6 +114,13 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.register_shortcuts()
         self.pick_obj_on_clicked()
 
+        if self.update_on_open_action.isChecked():
+            try:
+                self.fetch_latest_tool_version()
+            except Exception as err:
+                print(traceback.format_exc())
+                cmds.warning("Could not get version from GitHub: {e}".format(e=err))
+
     @classmethod
     def run(cls):
         inst = cls()
@@ -135,7 +145,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         for shortcut in cls.shortcuts:
             shortcut.setEnabled(False)
         cls.shortcuts = []
-    
+
     def create_gui(self):
         """
         Creates all interface objects.
@@ -199,6 +209,17 @@ class WeightsEditor(QtWidgets.QMainWindow):
                 color: black;
                 padding-left: 4px;
             }}
+            
+            #updateFrame {{
+                background-color: rgb(50, 180, 50);
+                padding: 0px;
+                margin: 0;
+            }}
+            
+            #updateLabel {{
+                font-weight: bold;
+                color: white;
+            }}
         """.format(
             presetBg=win_color.lighter(120).name(),
             winColor=win_color.lighter(110).name(),
@@ -246,9 +267,14 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.set_limit_action.triggered.connect(self.set_limit_on_triggered)
         self.options_menu.addAction(self.set_limit_action)
 
-        self.color_separator = QtWidgets.QAction("[ Color settings ]", self)
+        self.color_separator = QtWidgets.QAction("[ Settings ]", self)
         self.color_separator.setEnabled(False)
         self.options_menu.addAction(self.color_separator)
+
+        self.update_on_open_action = QtWidgets.QAction("Check for updates on open", self)
+        self.update_on_open_action.setCheckable(True)
+        self.update_on_open_action.setChecked(True)
+        self.options_menu.addAction(self.update_on_open_action)
 
         self.color_sub_menu = self.options_menu.addMenu("Switch influence color style")
 
@@ -281,8 +307,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.about_action = QtWidgets.QAction("About this tool", self)
         self.about_action.triggered.connect(self.about_on_triggered)
 
+        self.github_page_action = QtWidgets.QAction("Github page", self)
+        self.github_page_action.triggered.connect(self.github_page_on_triggered)
+
         self.about_menu = self.menu_bar.addMenu("&About")
         self.about_menu.addAction(self.about_action)
+        self.about_menu.addAction(self.github_page_action)
 
     #
     # CENTRAL WIDGET
@@ -459,6 +489,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.add_layout, self.add_groupbox, self.add_spinbox = \
             self.create_preset_buttons(
                 self.add_preset_values,
+                -1, 1, 0.1,
                 self.add_preset_on_clicked,
                 self.set_add_on_clicked,
                 "Add / subtract weight")
@@ -466,6 +497,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.scale_layout, self.scale_groupbox, self.scale_spinbox = \
             self.create_preset_buttons(
                 self.scale_preset_values,
+                -100, 100, 1,
                 self.scale_preset_on_clicked,
                 self.set_scale_on_clicked,
                 "Scale weight",
@@ -474,6 +506,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.set_layout, self.set_groupbox, self.set_spinbox = \
             self.create_preset_buttons(
                 self.set_preset_values,
+                0, 1, 0.1,
                 self.set_preset_on_clicked,
                 self.set_on_clicked,
                 "Set weight")
@@ -513,6 +546,13 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.flood_to_closest_button.setToolTip("Set full weights to the closest joints for easier blocking.")
         self.flood_to_closest_button.clicked.connect(self.flood_to_closest_on_clicked)
 
+        self.settings_layout = utils.wrap_layout(
+            [self.refresh_button,
+             self.show_all_button,
+             self.hide_colors_button,
+             self.flood_to_closest_button],
+            QtCore.Qt.Horizontal)
+
         # Undo buttons
         self.undo_button = QtWidgets.QPushButton("Undo", parent=self.central_widget)
         self.undo_button.clicked.connect(self.undo_on_click)
@@ -522,24 +562,34 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.redo_button.clicked.connect(self.redo_on_click)
         self.redo_button.setFixedHeight(40)
 
-        widgets = [self.refresh_button, self.show_all_button, self.hide_colors_button, self.flood_to_closest_button, self.undo_button, self.refresh_button]
-        for button in widgets:
-            button.setMinimumWidth(10)
-
         self.undo_layout = utils.wrap_layout(
             [self.undo_button,
              self.redo_button],
             QtCore.Qt.Horizontal)
 
-        self.settings_layout = utils.wrap_layout(
-            [self.refresh_button,
-             self.show_all_button,
-             self.hide_colors_button,
-             self.flood_to_closest_button],
-            QtCore.Qt.Horizontal)
+        widgets = [
+            self.refresh_button, self.show_all_button, self.hide_colors_button,
+            self.flood_to_closest_button, self.undo_button, self.refresh_button]
+        for button in widgets:
+            button.setMinimumWidth(10)
+
+        self.update_label = QtWidgets.QLabel(parent=self.central_widget)
+        self.update_label.setObjectName("updateLabel")
+        self.update_label.setOpenExternalLinks(True)
+
+        self.update_layout = utils.wrap_layout(
+            [self.update_label],
+            QtCore.Qt.Horizontal,
+            margins=[3, 0, 3, 0])
+
+        self.update_frame = QtWidgets.QFrame(parent=self.central_widget)
+        self.update_frame.setObjectName("updateFrame")
+        self.update_frame.setLayout(self.update_layout)
+        self.update_frame.hide()
 
         self.main_layout = utils.wrap_layout(
-            [self.pick_obj_layout,
+            [self.update_frame,
+             self.pick_obj_layout,
              self.weight_groupbox,
              self.add_groupbox,
              self.scale_groupbox,
@@ -593,9 +643,14 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.inf_widget.setLayout(self.inf_layout)
 
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.setWindowTitle("Weights Editor v{ver}".format(ver=self.version))
+        self.update_window_title()
         self.resize(1200, 1000)
 
+    def update_window_title(self):
+        title = "Weights Editor v{ver}".format(ver=self.version)
+        if self.obj:
+            title += " - {obj}".format(obj=self.obj.split("|")[-1])
+        self.setWindowTitle(title)
 #
 # Custom functions
 #
@@ -606,17 +661,18 @@ class WeightsEditor(QtWidgets.QMainWindow):
         else:
             return self.weights_list
 
-    def create_preset_buttons(self, values, preset_callback, spinbox_callback, caption, suffix=""):
+    def create_preset_buttons(self, values, spinbox_min, spinbox_max, spinbox_steps, preset_callback, spinbox_callback, caption, suffix=""):
         """
         Procedurally creates a group of preset buttons to adjust weights.
         """
         spinbox = custom_double_spinbox.CustomDoubleSpinbox(parent=self.central_widget)
+        spinbox.setToolTip("Click spinbox and press enter to apply its value")
         spinbox.setFixedWidth(80)
         spinbox.setFixedHeight(25)
         spinbox.setSuffix(suffix)
-        spinbox.setSingleStep(10)
-        spinbox.setMinimum(-100)
-        spinbox.setMaximum(100)
+        spinbox.setSingleStep(spinbox_steps)
+        spinbox.setMinimum(spinbox_min)
+        spinbox.setMaximum(spinbox_max)
         spinbox.enter_pressed.connect(spinbox_callback)
 
         layout = utils.wrap_layout(
@@ -649,6 +705,31 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
     def toggle_check_button(self, button):
         button.setChecked(not button.isChecked())
+
+    def fetch_latest_tool_version(self):
+        url = QtCore.QUrl("https://api.github.com/repos/theRussetPotato/weights_editor/releases/latest")
+
+        request = QtNetwork.QNetworkRequest()
+        request.setUrl(url)
+
+        manager = QtNetwork.QNetworkAccessManager()
+
+        response = manager.get(request)
+        response.finished.connect(
+            partial(self.request_on_finished, manager, response))  # Pass manager to keep it alive.
+
+    def request_on_finished(self, manager, response):
+        raw_response = response.readAll()
+        data = json.loads(bytes(raw_response))
+
+        latest_version = data["tag_name"]
+        is_obsolete = utils.is_version_string_greater(latest_version, self.version)
+
+        if is_obsolete:
+            self.update_label.setText(
+                "{ver} is available to <a href='{url}'>download here</a>".format(
+                    ver=latest_version, url=data["html_url"]))
+            self.update_frame.show()
 
     def update_tooltips(self):
         """
@@ -746,6 +827,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_scale_button.isChecked": self.show_scale_button.isChecked(),
             "show_set_button.isChecked": self.show_set_button.isChecked(),
             "show_inf_button.isChecked": self.show_inf_button.isChecked(),
+            "update_on_open_action.isChecked": self.update_on_open_action.isChecked(),
             "weights_table.max_display_count": self.weights_table.table_model.max_display_count
         }
 
@@ -823,7 +905,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_add_button.isChecked": self.show_add_button,
             "show_scale_button.isChecked": self.show_scale_button,
             "show_set_button.isChecked": self.show_set_button,
-            "show_inf_button.isChecked": self.show_inf_button
+            "show_inf_button.isChecked": self.show_inf_button,
+            "update_on_open_action.isChecked": self.update_on_open_action
         }
 
         for key, checkbox in checkboxes.items():
@@ -896,10 +979,14 @@ class WeightsEditor(QtWidgets.QMainWindow):
                     utils.show_error_msg("Skin cluster error!", msg, self)
         
         self.update_inf_list()
-        
-        # Display values
-        self.pick_obj_button.setText(self.obj or "Load object's skin data")
-        
+
+        caption = "Load object's skin data"
+        if self.obj:
+            caption = self.obj.split("|")[-1]
+        self.pick_obj_button.setText(caption)
+
+        self.update_window_title()
+
         self.recollect_table_data(load_selection=False)
         
         if current_obj is not None:
@@ -954,10 +1041,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
         Gets and returns a list of influences that effects selected vertexes.
         """
         infs = set()
-        
-        for vert_index in self.vert_indexes:
-            vert_infs = self.skin_data[vert_index]["weights"].keys()
-            infs = infs.union(vert_infs)
+
+        if self.skin_data:
+            for vert_index in self.vert_indexes:
+                vert_infs = self.skin_data[vert_index]["weights"].keys()
+                infs = infs.union(vert_infs)
         
         return sorted(list(infs))
     
@@ -1006,14 +1094,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
             self.collect_display_infs()
         
         if update_headers:
-            if self.color_style == ColorTheme.Softimage:
-                weights_view.color_headers()
-            else:
-                weights_view.reset_color_headers()
+            weights_view.color_headers()
 
         weights_view.end_update()
         weights_view.emit_header_data_changed()
-        
+
         if load_selection:
             if self.auto_select_infs_action.isChecked():
                 weights_view.select_items_by_inf(self.color_inf)
@@ -1398,7 +1483,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 #
 # Events
 #
-    
+
     def closeEvent(self, *args):
         try:
             self.save_state()
@@ -1653,6 +1738,9 @@ class WeightsEditor(QtWidgets.QMainWindow):
     def about_on_triggered(self):
         dialog = about_dialog.AboutDialog.launch(self.version, self)
         dialog.deleteLater()
+
+    def github_page_on_triggered(self):
+        webbrowser.open("https://github.com/theRussetPotato/weights_editor")
 
     def toggle_view_on_toggled(self, enabled):
         self.limit_warning_label.setVisible(False)
