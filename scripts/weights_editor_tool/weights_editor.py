@@ -46,7 +46,7 @@ from weights_editor_tool.widgets import about_dialog
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "1.1.0"
+    version = "2.1.0"
     instance = None
     cb_selection_changed = None
     shortcuts = []
