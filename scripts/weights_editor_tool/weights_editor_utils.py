@@ -91,24 +91,23 @@ def get_selected_mesh():
     Returns:
         A mesh from the selection or None if nothing valid was found.
     """
-    sel = cmds.ls(sl=True, transforms=True)
+    sel = cmds.ls(sl=True, long=True, transforms=True)
     
     if not sel:
-        shapes = cmds.ls(sl=True, l=True, objectsOnly=True)
+        shapes = cmds.ls(sl=True, long=True, objectsOnly=True)
         if shapes:
             sel = cmds.listRelatives(shapes[0], f=True, parent=True)
 
     if not sel:
         return
 
-    if not cmds.listRelatives(sel[0], shapes=True, type="mesh"):
-        if not cmds.listRelatives(sel[0], shapes=True, type="nurbsCurve"):
-            return
+    if not cmds.listRelatives(sel[0], shapes=True, type=["mesh", "nurbsCurve"]):
+        return
     
     return sel[0]
 
 
-def to_m_object(obj):
+def to_mobject(obj):
     """
     Gets an object as a MObject wrapper.
     
@@ -184,7 +183,7 @@ def lerp_color(start_color, end_color, blend_value):
     return QtGui.QColor(r, g, b)
 
 
-def flatten_list_to_indexes(flatten_list):
+def extract_indexes(flatten_list):
     """
     Converts a flattened vertex list to numbers.
     
@@ -200,20 +199,25 @@ def flatten_list_to_indexes(flatten_list):
     ]
 
 
-def get_vert_indexes(obj, selection=True):
+def get_all_vert_indexes(obj):
+    """
+    Gets and returns all vertexes from the supplied object.
+    """
+    if is_curve(obj):
+        return cmds.ls("{0}.cv[*]".format(obj), long=True, flatten=True)
+    else:
+        return cmds.ls("{0}.vtx[*]".format(obj), long=True, flatten=True)
+
+
+def get_vert_indexes(obj):
     """
     Gets and returns selected vertexes from the supplied object.
     """
-    kwargs = {"fl": True}
-    if selection:
-        kwargs["sl"] = True
-
     if is_curve(obj):
-        flatten_list = cmds.ls("{0}.cv[*]".format(obj), **kwargs)
+        return cmds.ls("{0}.cv[*]".format(obj), sl=True, long=True, flatten=True)
     else:
-        flatten_list = cmds.ls("{0}.vtx[*]".format(obj), **kwargs)
-    
-    return flatten_list_to_indexes(flatten_list)
+        components = filter(lambda x: x.startswith(obj), cmds.ls(sl=True, long=True, type="float3"))
+        return cmds.ls(cmds.polyListComponentConversion(components, toVertex=True), long=True, flatten=True)
 
 
 def get_skin_cluster(obj):
@@ -287,7 +291,7 @@ def get_influence_ids(skin_cluster):
     if not has_infs:
         return []
     
-    skin_cluster_node = to_m_object(skin_cluster)
+    skin_cluster_node = to_mobject(skin_cluster)
     skin_cluster_fn = OpenMayaAnim.MFnSkinCluster(skin_cluster_node)
     
     # Collect influences
@@ -318,7 +322,7 @@ def get_skin_data(skin_cluster):
         {vert_index:{"weights":{inf_name:weight_value...}, "dq"float}}
     """
     # Create skin cluster function set
-    skin_cluster_node = to_m_object(skin_cluster)
+    skin_cluster_node = to_mobject(skin_cluster)
     skin_cluster_fn = OpenMayaAnim.MFnSkinCluster(skin_cluster_node)
     
     # Get MPlugs for weights
@@ -859,17 +863,13 @@ def prune_weights(obj, skin_cluster, prune_value):
     Returns:
         True on success.
     """
-    if is_curve(obj):
-        flatten_list = cmds.ls("{0}.cv[*]".format(obj), sl=True, fl=True)
-    else:
-        flatten_list = cmds.ls("{0}.vtx[*]".format(obj), sl=True, fl=True)
-        
+    flatten_list = get_vert_indexes(obj)
     if not flatten_list:
         OpenMaya.MGlobal.displayWarning("No vertexes are selected.")
-        return
+        return False
     
     cmds.skinPercent(skin_cluster, flatten_list, prw=prune_value, nrm=True)
-    
+
     return True
 
 

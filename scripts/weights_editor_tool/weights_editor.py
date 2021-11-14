@@ -46,7 +46,7 @@ from weights_editor_tool.widgets import about_dialog
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "2.1.0"
+    version = "2.1.1"
     instance = None
     cb_selection_changed = None
     shortcuts = []
@@ -386,7 +386,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.smooth_strength_spinbox = QtWidgets.QDoubleSpinBox(value=1, parent=self.central_widget)
         self.smooth_strength_spinbox.setToolTip("Smooth's strength.")
         self.smooth_strength_spinbox.setMinimumWidth(50)
-        self.smooth_strength_spinbox.setDecimals(1)
+        self.smooth_strength_spinbox.setDecimals(2)
         self.smooth_strength_spinbox.setMinimum(0)
         self.smooth_strength_spinbox.setMaximum(1)
         self.smooth_strength_spinbox.setSingleStep(0.1)
@@ -1088,7 +1088,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
                 self.skin_data = utils.get_skin_data(self.skin_cluster)
         
         if update_verts:
-            self.vert_indexes = utils.get_vert_indexes(current_obj)
+            self.vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
         
         if update_infs:
             self.collect_display_infs()
@@ -1261,7 +1261,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             OpenMaya.MGlobal.displayWarning("No object to operate on.")
             return
 
-        selected_vertexes = utils.get_vert_indexes(current_obj)
+        selected_vertexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
         if not selected_vertexes:
             OpenMaya.MGlobal.displayWarning("No vertexes are selected.")
             return
@@ -1271,7 +1271,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
 
-        sel_vert_indexes = utils.get_vert_indexes(current_obj)
+        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
 
         if smooth_operation == SmoothOperation.Normal:
             utils.smooth_weights(
@@ -1357,8 +1357,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
 
-        vert_indexes = utils.get_vert_indexes(current_obj, selection=selection_only)
-        vert_components = cmds.ls("{0}.vtx[*]".format(current_obj), sl=selection_only, fl=True)
+        if selection_only:
+            vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
+        else:
+            vert_indexes = utils.extract_indexes(utils.get_all_vert_indexes(current_obj))
+
+        vert_plugs = [
+            "{0}.vtx[{1}]".format(current_obj, index)
+            for index in vert_indexes
+        ]
 
         mirror_mode = self.mirror_mode.currentText().lstrip("-")
         mirror_inverse = self.mirror_mode.currentText().startswith("-")
@@ -1382,7 +1389,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         inf_association = inf_options[self.mirror_inf.currentText()]
 
         utils.mirror_skin_weights(
-            vert_components,
+            vert_plugs,
             mirror_mode,
             mirror_inverse,
             surface_association,
@@ -1591,7 +1598,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
         
-        sel_vert_indexes = utils.get_vert_indexes(current_obj)
+        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
         
         is_pruned = utils.prune_weights(current_obj, self.skin_cluster, self.prune_spinbox.value())
         if not is_pruned:
@@ -1623,7 +1630,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if not current_obj:
             return
 
-        vert_indexes = utils.get_vert_indexes(current_obj)
+        vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
         if not vert_indexes:
             OpenMaya.MGlobal.displayError("Need a vertex to be selected.")
             return
@@ -1641,7 +1648,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if not current_obj:
             return
 
-        vert_indexes = utils.get_vert_indexes(current_obj)
+        vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
         if not vert_indexes:
             return
 
@@ -1703,7 +1710,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
 
-        vert_indexes = utils.get_vert_indexes(current_obj, selection=False)
+        vert_indexes = utils.get_all_vert_indexes(current_obj)
 
         utils.flood_weights_to_closest(current_obj, self.skin_cluster)
 
@@ -1809,7 +1816,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             OpenMaya.MGlobal.displayError("There's no active object to work on.")
             return
         
-        sel_vert_indexes = utils.get_vert_indexes(current_obj)
+        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
         if not sel_vert_indexes:
             OpenMaya.MGlobal.displayError("There's no selected vertexes to set on.")
             return

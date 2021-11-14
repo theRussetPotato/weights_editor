@@ -349,7 +349,7 @@ class TableModel(abstract_weights_view.AbstractModel):
             else:
                 # Show side labels
                 if self.editor_inst.vert_indexes and column < len(self.editor_inst.vert_indexes):
-                    return self.editor_inst.vert_indexes[column]
+                    return "vtx[{0}]".format(self.editor_inst.vert_indexes[column])
         elif role == QtCore.Qt.ToolTipRole:
             if orientation == QtCore.Qt.Horizontal:
                 if self.display_infs and column < len(self.display_infs):
