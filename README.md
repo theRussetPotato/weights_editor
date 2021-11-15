@@ -11,8 +11,8 @@ _Interface using the list view_
 
 ## Features
 
-- Editable table and list views to quickly set weights
-- Buttons with preset values to add, subtract, scale, or set weights
+- Editable table and list views to quickly set weights with selected components (verts, edges, faces)
+- Buttons with preset values to add, subtract, scale, or set weights (buttons are customizable)
 - Quickly lock or unlock selected influences by pressing space
 - Influence list on the side
 - Displays weights in different color themes
