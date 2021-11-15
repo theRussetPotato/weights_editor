@@ -41,12 +41,13 @@ from weights_editor_tool.widgets import inf_list_view
 from weights_editor_tool.widgets import weights_list_view
 from weights_editor_tool.widgets import weights_table_view
 from weights_editor_tool.widgets import hotkeys_dialog
+from weights_editor_tool.widgets import presets_dialog
 from weights_editor_tool.widgets import about_dialog
 
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "2.1.1"
+    version = "2.1.2"
     instance = None
     cb_selection_changed = None
     shortcuts = []
@@ -81,9 +82,9 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.ignore_cell_selection_event = False
         self.in_component_mode = utils.is_in_component_mode()
         self.settings_path = os.path.join(os.getenv("HOME"), "maya", "weights_editor.json")
-        self.add_preset_values = [-0.2, -0.1, -0.05, -0.01, 0.01, 0.05, 0.1, 0.2]
-        self.scale_preset_values = [-50, -25, -10, -5, 5, 10, 25, 50]
-        self.set_preset_values = [0.0, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
+        self.add_preset_values = presets_dialog.PresetsDialog.Defaults["add"]
+        self.scale_preset_values = presets_dialog.PresetsDialog.Defaults["scale"]
+        self.set_preset_values = presets_dialog.PresetsDialog.Defaults["set"]
 
         self.create_gui()
 
@@ -298,11 +299,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.visibility_separator.setSeparator(True)
         self.options_menu.addAction(self.visibility_separator)
 
-        self.launch_hotkeys_action = QtWidgets.QAction("Edit", self)
+        self.launch_hotkeys_action = QtWidgets.QAction("Edit hotkeys", self)
         self.launch_hotkeys_action.triggered.connect(self.launch_hotkeys_on_clicked)
 
-        self.hotkeys_menu = self.menu_bar.addMenu("&Hotkeys")
-        self.hotkeys_menu.addAction(self.launch_hotkeys_action)
+        self.launch_presets_action = QtWidgets.QAction("Edit preset buttons", self)
+        self.launch_presets_action.triggered.connect(self.launch_presets_on_clicked)
+
+        self.prefs_menu = self.menu_bar.addMenu("&Preferences")
+        self.prefs_menu.addAction(self.launch_hotkeys_action)
+        self.prefs_menu.addAction(self.launch_presets_action)
 
         self.about_action = QtWidgets.QAction("About this tool", self)
         self.about_action.triggered.connect(self.about_on_triggered)
@@ -487,27 +492,21 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.weight_groupbox.setLayout(self.weight_scroll_layout)
 
         self.add_layout, self.add_groupbox, self.add_spinbox = \
-            self.create_preset_buttons(
-                self.add_preset_values,
+            self.create_preset_layout(
                 -1, 1, 0.1,
-                self.add_preset_on_clicked,
                 self.set_add_on_clicked,
                 "Add / subtract weight")
 
         self.scale_layout, self.scale_groupbox, self.scale_spinbox = \
-            self.create_preset_buttons(
-                self.scale_preset_values,
+            self.create_preset_layout(
                 -100, 100, 1,
-                self.scale_preset_on_clicked,
                 self.set_scale_on_clicked,
                 "Scale weight",
                 suffix="%")
 
         self.set_layout, self.set_groupbox, self.set_spinbox = \
-            self.create_preset_buttons(
-                self.set_preset_values,
+            self.create_preset_layout(
                 0, 1, 0.1,
-                self.set_preset_on_clicked,
                 self.set_on_clicked,
                 "Set weight")
 
@@ -661,10 +660,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         else:
             return self.weights_list
 
-    def create_preset_buttons(self, values, spinbox_min, spinbox_max, spinbox_steps, preset_callback, spinbox_callback, caption, suffix=""):
-        """
-        Procedurally creates a group of preset buttons to adjust weights.
-        """
+    def create_preset_layout(self, spinbox_min, spinbox_max, spinbox_steps, spinbox_callback, caption, suffix=""):
         spinbox = custom_double_spinbox.CustomDoubleSpinbox(parent=self.central_widget)
         spinbox.setToolTip("Click spinbox and press enter to apply its value")
         spinbox.setFixedWidth(80)
@@ -681,15 +677,27 @@ class WeightsEditor(QtWidgets.QMainWindow):
             margins=[5, 3, 1, 3])
         layout.setAlignment(QtCore.Qt.AlignLeft)
 
-        for value in values:
+        groupbox = QtWidgets.QGroupBox(caption, parent=self.central_widget)
+        groupbox.setLayout(layout)
 
+        return layout, groupbox, spinbox
+
+    def append_preset_buttons(self, values, layout, preset_callback, tooltip, suffix=""):
+        """
+        Procedurally creates multiple preset buttons to adjust weights.
+        """
+        for i in range(layout.count() - 1):
+            old_button = layout.takeAt(1).widget()
+            old_button.deleteLater()
+
+        for value in values:
             text = "".join([str(value), suffix])
             preset_button = QtWidgets.QPushButton(text, parent=self.central_widget)
             preset_button.setMaximumWidth(60)
             preset_button.setSizePolicy(
                 QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
             preset_button.clicked.connect(partial(preset_callback, value))
-            preset_button.setToolTip("{0} by {1}".format(caption, text))
+            preset_button.setToolTip("{0} by {1}".format(tooltip, text))
 
             if value > 0:
                 preset_button.setObjectName("presetPositiveButton")
@@ -698,10 +706,14 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
             layout.addWidget(preset_button)
 
-        groupbox = QtWidgets.QGroupBox(caption, parent=self.central_widget)
-        groupbox.setLayout(layout)
+    def append_add_presets_buttons(self, values):
+        self.append_preset_buttons(values, self.add_layout, self.add_preset_on_clicked, "Add / subtract weight")
 
-        return layout, groupbox, spinbox
+    def append_scale_presets_buttons(self, values):
+        self.append_preset_buttons(values, self.scale_layout, self.scale_preset_on_clicked, "Scale weight", suffix="%")
+
+    def append_set_presets_buttons(self, values):
+        self.append_preset_buttons(values, self.set_layout, self.set_preset_on_clicked, "Set weight")
 
     def toggle_check_button(self, button):
         button.setChecked(not button.isChecked())
@@ -828,7 +840,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_set_button.isChecked": self.show_set_button.isChecked(),
             "show_inf_button.isChecked": self.show_inf_button.isChecked(),
             "update_on_open_action.isChecked": self.update_on_open_action.isChecked(),
-            "weights_table.max_display_count": self.weights_table.table_model.max_display_count
+            "weights_table.max_display_count": self.weights_table.table_model.max_display_count,
+            "add_presets_values": self.add_preset_values,
+            "scale_presets_values": self.scale_preset_values,
+            "set_presets_values": self.set_preset_values
         }
 
         hotkeys_data = {}
@@ -840,17 +855,20 @@ class WeightsEditor(QtWidgets.QMainWindow):
         
         with open(self.settings_path, "w") as f:
             f.write(json.dumps(data, indent=4, sort_keys=True))
-    
+
+    def fetch_settings(self):
+        if not os.path.exists(self.settings_path):
+            return {}
+
+        with open(self.settings_path, "r") as f:
+            return json.loads(f.read())
+
     def restore_state(self):
         """
         Restores gui's last state if the file is available.
         """
-        if not os.path.exists(self.settings_path):
-            return
-        
-        with open(self.settings_path, "r") as f:
-            data = json.loads(f.read())
-        
+        data = self.fetch_settings()
+
         if "width" in data and "height" in data:
             self.resize(QtCore.QSize(data["width"], data["height"]))
         
@@ -918,11 +936,23 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if "hotkeys" in data:
             for hotkey in self.hotkeys:
                 if hotkey.caption in data["hotkeys"]:
-                    values =  data["hotkeys"][hotkey.caption]
+                    values = data["hotkeys"][hotkey.caption]
                     hotkey.ctrl = values["ctrl"]
                     hotkey.shift = values["shift"]
                     hotkey.alt = values["alt"]
                     hotkey.key = values["key"]
+
+        if "add_presets_values" in data:
+            self.add_preset_values = data["add_presets_values"]
+        self.append_add_presets_buttons(self.add_preset_values)
+
+        if "scale_presets_values" in data:
+            self.scale_preset_values = data["scale_presets_values"]
+        self.append_scale_presets_buttons(self.scale_preset_values)
+
+        if "set_presets_values" in data:
+            self.set_preset_values = data["set_presets_values"]
+        self.append_set_presets_buttons(self.set_preset_values)
     
     def update_obj(self, obj):
         """
@@ -1740,6 +1770,24 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if status:
             self.hotkeys = dialog.serialize()
             self.register_shortcuts()
+        dialog.deleteLater()
+
+    def launch_presets_on_clicked(self):
+        status, dialog = presets_dialog.PresetsDialog.launch(
+            self.add_preset_values,
+            self.scale_preset_values,
+            self.set_preset_values,
+            self)
+
+        if status:
+            presets = dialog.serialize()
+            self.add_preset_values = presets["add"]
+            self.scale_preset_values = presets["scale"]
+            self.set_preset_values = presets["set"]
+            self.append_add_presets_buttons(self.add_preset_values)
+            self.append_scale_presets_buttons(self.scale_preset_values)
+            self.append_set_presets_buttons(self.set_preset_values)
+
         dialog.deleteLater()
 
     def about_on_triggered(self):
