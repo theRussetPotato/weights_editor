@@ -2,6 +2,8 @@ from PySide2 import QtCore
 from PySide2 import QtGui
 from PySide2 import QtWidgets
 
+from weights_editor_tool import weights_editor_utils as utils
+
 
 class AboutDialog(QtWidgets.QDialog):
 
@@ -28,7 +30,14 @@ class AboutDialog(QtWidgets.QDialog):
         return groupbox
 
     def create_gui(self):
+        self.logo_img = QtWidgets.QLabel(parent=self)
+        self.logo_img.setAlignment(QtCore.Qt.AlignCenter)
+        self.logo_img.setPixmap(utils.load_pixmap("about/logo.png", width=125))
+
         self.version_label = QtWidgets.QLabel("Version v{}".format(self.version), parent=self)
+        self.version_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.version_label.setStyleSheet(
+            "QLabel {font-weight: bold; color: white;}")
 
         self.table_tips_groupbox = self.wrap_groupbox(
             "Using weights list / table",
@@ -41,7 +50,9 @@ class AboutDialog(QtWidgets.QDialog):
         self.inf_list_tips_groupbox = self.wrap_groupbox(
             "Using influence list",
             "- Press space to toggle locks on selected influences<br>"
-            "- Middle-click header to display that influence")
+            "- Middle-click header to display that influence<br>"
+            "- Right-click to trigger a menu<br>"
+            "- Double-click to select the influence")
 
         self.developed_by_groupbox = self.wrap_groupbox(
             "Developed by",
@@ -81,13 +92,14 @@ class AboutDialog(QtWidgets.QDialog):
         self.ok_layout.addStretch()
 
         self.main_layout = QtWidgets.QVBoxLayout()
+        self.main_layout.addWidget(self.logo_img)
         self.main_layout.addWidget(self.version_label)
         self.main_layout.addWidget(self.scroll_area)
         self.main_layout.addLayout(self.ok_layout)
         self.setLayout(self.main_layout)
 
         self.setWindowTitle("About Weights Editor")
-        self.resize(400, 450)
+        self.resize(400, 500)
 
     @classmethod
     def launch(cls, version, parent):

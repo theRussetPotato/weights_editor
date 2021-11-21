@@ -47,7 +47,7 @@ from weights_editor_tool.widgets import about_dialog
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "2.1.2"
+    version = "2.2.0"
     instance = None
     cb_selection_changed = None
     shortcuts = []
@@ -57,6 +57,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         self.del_prev_instance()
         self.__class__.instance = self
+
+        self.setWindowIcon(utils.load_pixmap("interface/icon.png"))
 
         self.maya_main_window = utils.get_maya_window()
         self.setParent(self.maya_main_window)
@@ -80,6 +82,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.color_style = ColorTheme.Max
         self.block_selection_cb = False
         self.ignore_cell_selection_event = False
+        self.allow_to_fetch_update = True
         self.in_component_mode = utils.is_in_component_mode()
         self.settings_path = os.path.join(os.getenv("HOME"), "maya", "weights_editor.json")
         self.add_preset_values = presets_dialog.PresetsDialog.Defaults["add"]
@@ -113,9 +116,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.restore_state()
         self.set_undo_buttons_enabled_state()
         self.register_shortcuts()
-        self.pick_obj_on_clicked()
 
-        if self.update_on_open_action.isChecked():
+        if self.allow_to_fetch_update and self.update_on_open_action.isChecked():
             try:
                 self.fetch_latest_tool_version()
             except Exception as err:
@@ -126,6 +128,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
     def run(cls):
         inst = cls()
         inst.show()
+        inst.pick_obj_on_clicked()
         return inst
 
     @classmethod
@@ -151,6 +154,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
         """
         Creates all interface objects.
         """
+
+        icon_size = QtCore.QSize(13, 13)
 
         win_color = self.palette().color(QtGui.QPalette.Normal, QtGui.QPalette.Window)
         preset_hover_color = win_color.lighter(130)
@@ -272,11 +277,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.color_separator.setEnabled(False)
         self.options_menu.addAction(self.color_separator)
 
-        self.update_on_open_action = QtWidgets.QAction("Check for updates on open", self)
-        self.update_on_open_action.setCheckable(True)
-        self.update_on_open_action.setChecked(True)
-        self.options_menu.addAction(self.update_on_open_action)
-
         self.color_sub_menu = self.options_menu.addMenu("Switch influence color style")
 
         self.max_color_action = QtWidgets.QAction("3dsMax theme", self)
@@ -294,6 +294,17 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.softimage_color_action.setCheckable(True)
         self.softimage_color_action.triggered.connect(partial(self.switch_color_on_clicked, ColorTheme.Softimage))
         self.color_sub_menu.addAction(self.softimage_color_action)
+
+        self.hide_long_names_action = QtWidgets.QAction("Hide long names", self)
+        self.hide_long_names_action.setCheckable(True)
+        self.hide_long_names_action.setChecked(True)
+        self.hide_long_names_action.toggled.connect(self.hide_long_names_on_triggered)
+        self.options_menu.addAction(self.hide_long_names_action)
+
+        self.update_on_open_action = QtWidgets.QAction("Check for updates on open", self)
+        self.update_on_open_action.setCheckable(True)
+        self.update_on_open_action.setChecked(True)
+        self.options_menu.addAction(self.update_on_open_action)
 
         self.visibility_separator = QtWidgets.QAction("Visibility settings", self)
         self.visibility_separator.setSeparator(True)
@@ -326,17 +337,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.central_widget = QtWidgets.QWidget(parent=self)
         self.central_widget.setObjectName("weightsEditorCentralWidget")
 
-        self.toggle_view_button = QtWidgets.QPushButton("TABLE", parent=self.central_widget)
-
-        self.show_utilities_button = QtWidgets.QPushButton("UTL", parent=self.central_widget)
-
-        self.show_add_button = QtWidgets.QPushButton("ADD", parent=self.central_widget)
-
-        self.show_scale_button = QtWidgets.QPushButton("SCA", parent=self.central_widget)
-
-        self.show_set_button = QtWidgets.QPushButton("SET", parent=self.central_widget)
-
-        self.show_inf_button = QtWidgets.QPushButton("INF", parent=self.central_widget)
+        self.toggle_view_button = self.create_button("TABLE", "interface/table.png")
+        self.show_utilities_button = self.create_button("UTL", "interface/utils.png")
+        self.show_add_button = self.create_button("ADD", "interface/add.png")
+        self.show_scale_button = self.create_button("SCA", "interface/percent.png")
+        self.show_set_button = self.create_button("SET", "interface/equal.png")
+        self.show_inf_button = self.create_button("INF", "interface/inf.png")
 
         for widget in [
                 self.toggle_view_button, self.show_utilities_button, self.show_add_button,
@@ -370,56 +376,76 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.pick_obj_button.setToolTip("Switches to selected mesh for editing.")
         self.pick_obj_button.clicked.connect(self.pick_obj_on_clicked)
 
+        self.refresh_button = self.create_button(
+            "", "interface/refresh.png",
+            tool_tip="Refreshes the skin's data.",
+            icon_size=QtCore.QSize(22, 22),
+            click_event=self.refresh_on_clicked)
+        self.refresh_button.setMinimumWidth(18)
+        self.refresh_button.setFixedHeight(24)
+        self.refresh_button.setFlat(True)
+
         self.pick_obj_layout = utils.wrap_layout(
             [self.pick_obj_label,
              self.pick_obj_button,
-             10,
+             self.refresh_button,
+             3,
              "stretch",
              self.show_layout],
              QtCore.Qt.Horizontal,
              margins=[5, 5, 5, 5])
 
-        self.smooth_button = QtWidgets.QPushButton("Smooth (vert's infs)", parent=self.central_widget)
-        self.smooth_button.clicked.connect(partial(self.run_smooth, SmoothOperation.Normal))
+        self.prune_spinbox = QtWidgets.QDoubleSpinBox(value=0.1, parent=self.central_widget)
+        self.prune_spinbox.setToolTip("Prune any influence below this value.")
+        self.prune_spinbox.setMinimumWidth(60)
+        self.prune_spinbox.setDecimals(3)
+        self.prune_spinbox.setMinimum(0.001)
+        self.prune_spinbox.setSingleStep(0.01)
 
-        self.smooth_br_button = QtWidgets.QPushButton("Smooth (all infs)", parent=self.central_widget)
-        self.smooth_br_button.clicked.connect(partial(self.run_smooth, SmoothOperation.AllInfluences))
+        self.prune_button = self.create_button(
+            "Prune", "interface/prune.png",
+            click_event=self.prune_on_clicked)
 
-        if not hasattr(cmds, "brSmoothWeightsContext"):
-            self.smooth_br_button.setEnabled(False)
+        self.prune_layout = utils.wrap_layout(
+            [self.prune_spinbox,
+             self.prune_button,
+             "stretch"],
+            QtCore.Qt.Horizontal)
 
         self.smooth_strength_spinbox = QtWidgets.QDoubleSpinBox(value=1, parent=self.central_widget)
         self.smooth_strength_spinbox.setToolTip("Smooth's strength.")
-        self.smooth_strength_spinbox.setMinimumWidth(50)
+        self.smooth_strength_spinbox.setMinimumWidth(60)
         self.smooth_strength_spinbox.setDecimals(2)
         self.smooth_strength_spinbox.setMinimum(0)
         self.smooth_strength_spinbox.setMaximum(1)
         self.smooth_strength_spinbox.setSingleStep(0.1)
 
-        self.prune_button = QtWidgets.QPushButton("Prune", parent=self.central_widget)
-        self.prune_button.clicked.connect(self.prune_on_clicked)
+        self.smooth_button = self.create_button(
+            "Smooth (vert's infs)", "interface/smooth.png",
+            click_event=partial(self.run_smooth, SmoothOperation.Normal))
 
-        self.prune_spinbox = QtWidgets.QDoubleSpinBox(value=0.1, parent=self.central_widget)
-        self.prune_spinbox.setToolTip("Prune any influence below this value.")
-        self.prune_spinbox.setDecimals(3)
-        self.prune_spinbox.setMinimum(0.001)
-        self.prune_spinbox.setSingleStep(0.01)
+        self.smooth_br_button = self.create_button(
+            "Smooth (all infs)", "interface/smooth.png",
+            click_event=partial(self.run_smooth, SmoothOperation.AllInfluences))
 
-        self.vert_ops_layout = utils.wrap_layout(
-            [self.prune_button,
-             self.prune_spinbox,
+        if not hasattr(cmds, "brSmoothWeightsContext"):
+            self.smooth_br_button.setEnabled(False)
+
+        self.smooth_layout = utils.wrap_layout(
+            [self.smooth_strength_spinbox,
              self.smooth_button,
              self.smooth_br_button,
-             self.smooth_strength_spinbox,
              "stretch"],
             QtCore.Qt.Horizontal)
 
-        self.mirror_skin_button = QtWidgets.QPushButton("Mirror", parent=self.central_widget)
-        self.mirror_skin_button.setToolTip("Mirror weights on selected vertexes only")
-        self.mirror_skin_button.clicked.connect(self.mirror_skin_on_clicked)
+        self.mirror_skin_button = self.create_button(
+            "Mirror", "interface/mirror.png",
+            tool_tip="Mirror weights on selected vertexes only",
+            click_event=self.mirror_skin_on_clicked)
 
-        self.mirror_all_skin_button = QtWidgets.QPushButton("Mirror all", parent=self.central_widget)
-        self.mirror_all_skin_button.clicked.connect(self.mirror_all_skin_on_clicked)
+        self.mirror_all_skin_button = self.create_button(
+            "Mirror all", "interface/mirror.png",
+            click_event=self.mirror_all_skin_on_clicked)
 
         self.mirror_mode = QtWidgets.QComboBox(parent=self.central_widget)
         self.mirror_mode.setToolTip("Mirror axis")
@@ -452,13 +478,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
             QtCore.Qt.Horizontal,
             margins=[0, 0, 0, 0])
 
-        self.copy_vertex_button = QtWidgets.QPushButton("Copy vertex", parent=self.central_widget)
-        self.copy_vertex_button.setToolTip("Copy weights on first selected vertex")
-        self.copy_vertex_button.clicked.connect(self.copy_vertex_on_clicked)
+        self.copy_vertex_button = self.create_button(
+            "Copy vertex", "interface/copy.png",
+            tool_tip="Copy weights on first selected vertex",
+            click_event=self.copy_vertex_on_clicked)
 
-        self.paste_vertex_button = QtWidgets.QPushButton("Paste vertex", parent=self.central_widget)
-        self.paste_vertex_button.setToolTip("Paste weights on selected vertexes")
-        self.paste_vertex_button.clicked.connect(self.paste_vertex_on_clicked)
+        self.paste_vertex_button = self.create_button(
+            "Paste vertex", "interface/paste.png",
+            tool_tip="Paste weights on selected vertexes",
+            click_event=self.paste_vertex_on_clicked)
 
         self.copy_vert_layout = utils.wrap_layout(
             [self.copy_vertex_button,
@@ -467,11 +495,13 @@ class WeightsEditor(QtWidgets.QMainWindow):
             QtCore.Qt.Horizontal)
 
         self.weight_layout = utils.wrap_layout(
-            [self.vert_ops_layout,
+            [self.prune_layout,
+             self.smooth_layout,
              self.mirror_layout,
              self.copy_vert_layout],
             QtCore.Qt.Vertical,
-            margins=[0, 0, 0, 0])
+            margins=[0, 0, 0, 0],
+            spacing=5)
 
         self.weight_frame = QtWidgets.QFrame(parent=self.central_widget)
         self.weight_frame.setLayout(self.weight_layout)
@@ -528,37 +558,37 @@ class WeightsEditor(QtWidgets.QMainWindow):
             view.display_inf_triggered.connect(self.display_inf_on_triggered)
             view.select_inf_verts_triggered.connect(self.select_inf_verts_on_triggered)
 
-        self.refresh_button = QtWidgets.QPushButton("Refresh", parent=self.central_widget)
-        self.refresh_button.setToolTip("Refreshes the table with selected vertexes from the viewport.")
-        self.refresh_button.clicked.connect(self.refresh_on_clicked)
-
-        self.show_all_button = QtWidgets.QPushButton("Show all influences", parent=self.central_widget)
+        self.show_all_button = self.create_button(
+            "Show all influences", "interface/show.png",
+            tool_tip="Forces the table to show all influences.",
+            click_event=self.refresh_on_clicked)
         self.show_all_button.setCheckable(True)
-        self.show_all_button.setToolTip("Forces the table to show all influences.")
-        self.show_all_button.clicked.connect(self.refresh_on_clicked)
 
-        self.hide_colors_button = QtWidgets.QPushButton("Hide influence colors", parent=self.central_widget)
+        self.hide_colors_button = self.create_button(
+            "Hide influence colors", "interface/hide.png")
         self.hide_colors_button.setCheckable(True)
         self.hide_colors_button.toggled.connect(self.hide_colors_on_toggled)
 
-        self.flood_to_closest_button = QtWidgets.QPushButton("Flood to closest", parent=self.central_widget)
-        self.flood_to_closest_button.setToolTip("Set full weights to the closest joints for easier blocking.")
-        self.flood_to_closest_button.clicked.connect(self.flood_to_closest_on_clicked)
+        self.flood_to_closest_button = self.create_button(
+            "Flood to closest", "interface/flood.png",
+            tool_tip="Set full weights to the closest joints for easier blocking.",
+            click_event=self.flood_to_closest_on_clicked)
 
         self.settings_layout = utils.wrap_layout(
-            [self.refresh_button,
-             self.show_all_button,
+            [self.show_all_button,
              self.hide_colors_button,
              self.flood_to_closest_button],
             QtCore.Qt.Horizontal)
 
         # Undo buttons
-        self.undo_button = QtWidgets.QPushButton("Undo", parent=self.central_widget)
-        self.undo_button.clicked.connect(self.undo_on_click)
+        self.undo_button = self.create_button(
+            "Undo", "interface/undo.png",
+            click_event=self.undo_on_click)
         self.undo_button.setFixedHeight(40)
 
-        self.redo_button = QtWidgets.QPushButton("Redo", parent=self.central_widget)
-        self.redo_button.clicked.connect(self.redo_on_click)
+        self.redo_button = self.create_button(
+            "Redo", "interface/redo.png",
+            click_event=self.redo_on_click)
         self.redo_button.setFixedHeight(40)
 
         self.undo_layout = utils.wrap_layout(
@@ -567,8 +597,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             QtCore.Qt.Horizontal)
 
         widgets = [
-            self.refresh_button, self.show_all_button, self.hide_colors_button,
-            self.flood_to_closest_button, self.undo_button, self.refresh_button]
+            self.show_all_button, self.hide_colors_button,
+            self.flood_to_closest_button, self.undo_button]
         for button in widgets:
             button.setMinimumWidth(10)
 
@@ -619,17 +649,24 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         self.inf_filter_edit = QtWidgets.QLineEdit(parent=self.inf_widget)
         self.inf_filter_edit.setPlaceholderText("Filter list by names (use * as a wildcard)")
-        self.inf_filter_edit.textEdited.connect(self.apply_filter_to_inf_list)
+        self.inf_filter_edit.textChanged.connect(self.apply_filter_to_inf_list)
 
         self.inf_list = inf_list_view.InfListView(self, parent=self.inf_widget)
         self.inf_list.middle_clicked.connect(self.inf_list_on_middle_clicked)
-        self.inf_list.toggle_lock_triggered.connect(self.inf_list_on_toggle_lock_triggered)
+        self.inf_list.toggle_locks_triggered.connect(self.inf_list_on_toggle_locks_triggered)
+        self.inf_list.set_locks_triggered.connect(self.toggle_inf_locks)
+        self.inf_list.select_inf_verts_triggered.connect(self.select_by_infs_on_clicked)
+        self.inf_list.add_infs_to_verts_triggered.connect(self.add_inf_to_vert_on_clicked)
 
         self.add_inf_to_vert_button = QtWidgets.QPushButton("Add inf to verts", parent=self.inf_widget)
+        self.add_inf_to_vert_button.setIconSize(icon_size)
+        self.add_inf_to_vert_button.setIcon(utils.load_pixmap("interface/add_inf.png"))
         self.add_inf_to_vert_button.setToolTip("Adds the selected influence to all selected vertexes.")
         self.add_inf_to_vert_button.clicked.connect(self.add_inf_to_vert_on_clicked)
 
         self.select_by_infs_button = QtWidgets.QPushButton("Select influence's verts", parent=self.inf_widget)
+        self.select_by_infs_button.setIconSize(icon_size)
+        self.select_by_infs_button.setIcon(utils.load_pixmap("interface/select.png"))
         self.select_by_infs_button.setToolTip("Selects all vertexes that is effected by the selected influences.")
         self.select_by_infs_button.clicked.connect(self.select_by_infs_on_clicked)
 
@@ -659,6 +696,22 @@ class WeightsEditor(QtWidgets.QMainWindow):
             return self.weights_table
         else:
             return self.weights_list
+
+    def create_button(self, caption, img_name, icon_size=QtCore.QSize(13, 13), tool_tip=None, click_event=None, parent=None):
+        if parent is None:
+            parent = self.central_widget
+
+        button = QtWidgets.QPushButton(caption, parent=parent)
+        button.setIconSize(icon_size)
+        button.setIcon(utils.load_pixmap(img_name))
+
+        if tool_tip is not None:
+            button.setToolTip(tool_tip)
+
+        if click_event is not None:
+            button.clicked.connect(click_event)
+
+        return button
 
     def create_preset_layout(self, spinbox_min, spinbox_max, spinbox_steps, spinbox_callback, caption, suffix=""):
         spinbox = custom_double_spinbox.CustomDoubleSpinbox(parent=self.central_widget)
@@ -784,9 +837,9 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.update_tooltips()
 
     def get_obj_by_name(self, obj):
-        if obj is not None and cmds.objExists(obj):
+        if obj and cmds.objExists(obj):
             return obj
-    
+
     def set_undo_buttons_enabled_state(self):
         """
         Checks the undo stack and determines enabled state and labels on undo/redo buttons.
@@ -840,6 +893,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_set_button.isChecked": self.show_set_button.isChecked(),
             "show_inf_button.isChecked": self.show_inf_button.isChecked(),
             "update_on_open_action.isChecked": self.update_on_open_action.isChecked(),
+            "hide_long_names_action.isChecked": self.hide_long_names_action.isChecked(),
             "weights_table.max_display_count": self.weights_table.table_model.max_display_count,
             "add_presets_values": self.add_preset_values,
             "scale_presets_values": self.scale_preset_values,
@@ -924,7 +978,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_scale_button.isChecked": self.show_scale_button,
             "show_set_button.isChecked": self.show_set_button,
             "show_inf_button.isChecked": self.show_inf_button,
-            "update_on_open_action.isChecked": self.update_on_open_action
+            "update_on_open_action.isChecked": self.update_on_open_action,
+            "hide_long_names_action.isChecked": self.hide_long_names_action
         }
 
         for key, checkbox in checkboxes.items():
@@ -963,70 +1018,74 @@ class WeightsEditor(QtWidgets.QMainWindow):
         """
         weights_view = self.get_active_weights_view()
         weights_view.begin_update()
-        
-        last_obj = self.get_obj_by_name(self.obj)
-        if last_obj is not None:
-            self.hide_vert_colors(last_obj)
-        
-        # Reset values
-        self.obj = obj
-        self.skin_cluster = None
-        self.skin_data = {}
-        self.vert_count = None
-        self.infs = []
-        self.in_component_mode = utils.is_in_component_mode()
-        
-        # Reset undo stack.
-        self.undo_stack.clear()
-        self.set_undo_buttons_enabled_state()
-        
-        current_obj = self.get_obj_by_name(self.obj)
-        
-        # Collect new values
-        if current_obj is not None:
-            if utils.is_curve(current_obj):
-                curve_degree = cmds.getAttr("{0}.degree".format(current_obj))
-                curve_spans = cmds.getAttr("{0}.spans".format(current_obj))
-                self.vert_count = curve_degree + curve_spans
-            else:
-                self.vert_count = cmds.polyEvaluate(current_obj, vertex=True)
-            
-            skin_cluster = utils.get_skin_cluster(obj)
-            
-            if skin_cluster:
-                # Maya doesn't update this attribute if topology changes were done while it has a skinCluster.
-                weights_count = len(cmds.getAttr("{0}.weightList[*]".format(skin_cluster)))
-                
-                if self.vert_count == weights_count:
-                    self.skin_cluster = skin_cluster
-                    
-                    self.infs = self.get_all_infs()
+
+        try:
+            last_obj = self.get_obj_by_name(self.obj)
+            if last_obj is not None:
+                self.hide_vert_colors(last_obj)
+
+            # Reset values
+            self.obj = obj
+            self.skin_cluster = None
+            self.skin_data = {}
+            self.vert_count = None
+            self.infs = []
+            self.in_component_mode = utils.is_in_component_mode()
+
+            # Reset undo stack.
+            self.undo_stack.clear()
+            self.set_undo_buttons_enabled_state()
+
+            current_obj = self.get_obj_by_name(self.obj)
+
+            # Collect new values
+            if current_obj is not None:
+                if utils.is_curve(current_obj):
+                    curve_degree = cmds.getAttr("{0}.degree".format(current_obj))
+                    curve_spans = cmds.getAttr("{0}.spans".format(current_obj))
+                    self.vert_count = curve_degree + curve_spans
                 else:
-                    msg = ("The mesh's vert count doesn't match the skin cluster's weight count!\n"
-                           "This is likely because changes were done on the mesh with an enabled skinCluster.\n"
-                           "\n"
-                           "You may have to duplicate the mesh and use copy weights to fix it.")
-                    utils.show_error_msg("Skin cluster error!", msg, self)
-        
-        self.update_inf_list()
+                    self.vert_count = cmds.polyEvaluate(current_obj, vertex=True)
 
-        caption = "Load object's skin data"
-        if self.obj:
-            caption = self.obj.split("|")[-1]
-        self.pick_obj_button.setText(caption)
+                skin_cluster = utils.get_skin_cluster(obj)
 
-        self.update_window_title()
+                if skin_cluster:
+                    # Maya doesn't update this attribute if topology changes were done while it has a skinCluster.
+                    weights_count = len(cmds.getAttr("{0}.weightList[*]".format(skin_cluster)))
 
-        self.recollect_table_data(load_selection=False)
-        
+                    if self.vert_count == weights_count:
+                        self.skin_cluster = skin_cluster
+
+                        self.infs = self.get_all_infs()
+                    else:
+                        msg = ("The mesh's vert count doesn't match the skin cluster's weight count!\n"
+                               "This is likely because changes were done on the mesh with an enabled skinCluster.\n"
+                               "\n"
+                               "You may have to duplicate the mesh and use copy weights to fix it.")
+                        utils.show_error_msg("Skin cluster error!", msg, self)
+
+            self.update_inf_list()
+
+            caption = "Load object's skin data"
+            if self.obj:
+                caption = self.obj.split("|")[-1]
+            self.pick_obj_button.setText(caption)
+
+            self.update_window_title()
+
+            self.recollect_table_data(load_selection=False)
+        finally:
+            weights_view.end_update()
+
         if current_obj is not None:
+            if self.infs:
+                self.auto_assign_color_inf()
+
             if not self.hide_colors_button.isChecked() and self.in_component_mode:
                 utils.switch_to_color_set(current_obj)
                 self.update_vert_colors()
             else:
                 self.hide_vert_colors(current_obj)
-
-        weights_view.end_update()
     
     def collect_inf_locks(self):
         """
@@ -1062,9 +1121,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
     def get_all_infs(self):
         """
         Gets and returns a list of all influences from the active skinCluster.
+        Also collects unique colors of each influence for the Softimage theme.
         """
-        return sorted(
-            cmds.skinCluster(self.skin_cluster, q=True, inf=True) or [])
+        self.inf_colors = utils.collect_influence_colors(self.skin_cluster)
+        return sorted(cmds.skinCluster(self.skin_cluster, q=True, inf=True) or [])
     
     def get_selected_infs(self):
         """
@@ -1135,7 +1195,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             else:
                 weights_view.load_table_selection(selection_data)
 
-            weights_view.fit_headers_to_contents()
+        weights_view.fit_headers_to_contents()
         
         self.ignore_cell_selection_event = False
     
@@ -1235,20 +1295,16 @@ class WeightsEditor(QtWidgets.QMainWindow):
             return
 
         if self.color_inf is None:
-            weights_view = self.get_active_weights_view()
-            display_infs = weights_view.display_infs()
-
-            if display_infs:
-                self.set_color_inf(display_infs[0])
-            else:
-                self.set_color_inf(self.infs[0])
+            self.auto_assign_color_inf()
         
         if self.color_style == ColorTheme.Softimage:
             self.set_color_inf(None)
-            self.inf_colors = utils.display_multi_color_influence(
+
+            utils.display_multi_color_influence(
                 current_obj,
                 self.skin_cluster,
                 self.skin_data,
+                inf_colors=self.inf_colors,
                 vert_filter=vert_filter)
         else:
             if self.color_inf is not None:
@@ -1355,25 +1411,45 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.inf_list.begin_update()
         
         self.color_inf = inf
-        
+
         self.inf_list.end_update()
         weights_view.end_update()
-    
+
+    def auto_assign_color_inf(self):
+        if self.infs:
+            weights_view = self.get_active_weights_view()
+            display_infs = weights_view.display_infs()
+
+            if display_infs:
+                self.set_color_inf(display_infs[0])
+            else:
+                self.set_color_inf(self.infs[0])
+
     def update_inf_list(self):
         self.inf_list.begin_update()
-        
-        self.inf_list.list_model.clear()
-        
-        for i, inf in enumerate(sorted(self.infs)):
-            item = QtGui.QStandardItem(inf)
-            item.setToolTip(inf)
-            item.setSizeHint(QtCore.QSize(1, 30))
-            self.inf_list.list_model.appendRow(item)
-        
-        self.apply_filter_to_inf_list()
-        
-        self.inf_list.end_update()
-    
+
+        try:
+            self.inf_list.list_model.clear()
+
+            for i, inf in enumerate(sorted(self.infs)):
+                item = QtGui.QStandardItem(inf)
+                item.setToolTip(inf)
+                item.setSizeHint(QtCore.QSize(1, 30))
+                self.inf_list.list_model.appendRow(item)
+
+            self.apply_filter_to_inf_list()
+        finally:
+            self.inf_list.end_update()
+            self.update_inf_filter_items()
+
+    def update_inf_filter_items(self):
+        items = self.inf_list.get_displayed_items()
+        completer = QtWidgets.QCompleter(items, self)
+        completer.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        completer.setCompletionMode(QtWidgets.QCompleter.PopupCompletion)
+        completer.setFilterMode(QtCore.Qt.MatchContains)
+        self.inf_filter_edit.setCompleter(completer)
+
     def apply_filter_to_inf_list(self):
         self.inf_list.apply_filter("*" + self.inf_filter_edit.text() + "*")
 
@@ -1479,7 +1555,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 #
 # Callbacks
 #
-    
+
     def selection_on_changed(self, *args):
         """
         Triggers when user selects a new vertex in the viewport.
@@ -1502,7 +1578,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
                         self.hide_vert_colors(current_obj)
 
             self.in_component_mode = now_in_component_mode
-            
+
             # Update table's data.
             if not self.block_selection_cb:
                 self.recollect_table_data(update_skin_data=False)
@@ -1551,7 +1627,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             self.toggle_selected_inf_locks()
     
     def refresh_on_clicked(self):
-        self.recollect_table_data()
+        self.update_obj(self.obj)
     
     def auto_update_on_toggled(self):
         enable_cb = self.auto_update_table_action.isChecked()
@@ -1765,6 +1841,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.softimage_color_action.setChecked(index == ColorTheme.Softimage)
         self.switch_color_style(index)
 
+    def hide_long_names_on_triggered(self, visible):
+        self.inf_list.toggle_long_names(visible)
+        self.update_inf_filter_items()
+        self.weights_list.toggle_long_names(visible)
+        self.weights_table.toggle_long_names(visible)
+
     def launch_hotkeys_on_clicked(self):
         status, dialog = hotkeys_dialog.HotkeysDialog.launch(self.hotkeys, self)
         if status:
@@ -1804,10 +1886,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         if enabled:
             self.toggle_view_button.setText("TABLE")
+            self.toggle_view_button.setIcon(utils.load_pixmap("interface/table.png"))
         else:
             self.toggle_view_button.setText("LIST")
+            self.toggle_view_button.setIcon(utils.load_pixmap("interface/list.png"))
 
-        self.refresh_on_clicked()
+        self.recollect_table_data()
 
     def show_utilities_on_toggled(self, enabled):
         self.weight_groupbox.setVisible(enabled)
@@ -1845,16 +1929,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
             self.set_color_inf(inf)
             self.update_vert_colors()
 
-    def inf_list_on_toggle_lock_triggered(self, infs):
+    def inf_list_on_toggle_locks_triggered(self, infs):
         if infs[0] not in self.infs:
-            OpenMaya.MGlobal.displayError(
-                "Unable to find influence in internal data.. Is it out of sync?")
+            OpenMaya.MGlobal.displayError("Unable to find influence in internal data.. Is it out of sync?")
             return
 
         inf_index = self.infs.index(infs[0])
-        do_lock = not self.locks[inf_index]
-        self.toggle_inf_locks(infs, do_lock)
-    
+        lock = not self.locks[inf_index]
+        self.toggle_inf_locks(infs, lock)
+
     def add_inf_to_vert_on_clicked(self):
         """
         Adds a very small weight value from selected influences to selected vertexes.

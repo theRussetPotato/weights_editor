@@ -159,6 +159,23 @@ class ListView(abstract_weights_view.AbstractWeightsView):
 
         selection_model.select(item_selection, QtCore.QItemSelectionModel.Select)
 
+    def fit_headers_to_contents(self):
+        width = 0
+        infs = self.display_infs()
+
+        if infs:
+            if self.table_model.hide_long_names:
+                infs = [inf.split("|")[-1] for inf in infs]
+
+            font_metrics = self.editor_inst.fontMetrics()
+            padding = 10
+
+            width = sorted([
+                font_metrics.width(inf)
+                for inf in infs])[-1] + padding
+
+        self.verticalHeader().size = QtCore.QSize(width, 0)
+
 
 class ListModel(abstract_weights_view.AbstractModel):
     
@@ -191,8 +208,13 @@ class ListModel(abstract_weights_view.AbstractModel):
                 is_locked = self.editor_inst.locks[inf_index]
                 if is_locked:
                     return self.locked_text
-                if value == 0:
+
+                if value != 0 and value < 0.001:
+                    return self.low_weight_text
+                elif value == 0:
                     return self.zero_weight_text
+                elif value >= 0.999:
+                    return self.full_weight_text
             else:
                 if value != 0 and value < 0.001:
                     return "< 0.001"
@@ -219,8 +241,7 @@ class ListModel(abstract_weights_view.AbstractModel):
                 return False
             
             value = float(value)
-            
-            if not (value >= 0 and value <= 1):
+            if not value >= 0 and value <= 1:
                 return False
 
             self.input_value = value
@@ -270,7 +291,10 @@ class ListModel(abstract_weights_view.AbstractModel):
             if orientation == QtCore.Qt.Vertical:
                 # Show top labels
                 if self.display_infs and index < len(self.display_infs):
-                    return self.display_infs[index]
+                    inf = self.display_infs[index]
+                    if self.hide_long_names:
+                        return inf.split("|")[-1]
+                    return inf
             else:
                 return "Average values"
         elif role == QtCore.Qt.ToolTipRole:

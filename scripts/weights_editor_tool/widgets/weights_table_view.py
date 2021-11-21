@@ -228,6 +228,10 @@ class TableView(abstract_weights_view.AbstractWeightsView):
 
         selection_model.select(item_selection, QtCore.QItemSelectionModel.Select)
 
+    def fit_headers_to_contents(self):
+        for i in range(self.horizontalHeader().count()):
+            self.resizeColumnToContents(i)
+
     def end_update(self):
         super(TableView, self).end_update()
         over_limit = len(self.editor_inst.vert_indexes) > self.table_model.max_display_count
@@ -262,8 +266,13 @@ class TableModel(abstract_weights_view.AbstractModel):
                 is_locked = self.editor_inst.locks[inf_index]
                 if is_locked:
                     return self.locked_text
-                if value == 0:
+
+                if value != 0 and value < 0.001:
+                    return self.low_weight_text
+                elif value == 0:
                     return self.zero_weight_text
+                elif value >= 0.999:
+                    return self.full_weight_text
             else:
                 if value != 0 and value < 0.001:
                     return "< 0.001"
@@ -345,7 +354,10 @@ class TableModel(abstract_weights_view.AbstractModel):
             if orientation == QtCore.Qt.Horizontal:
                 # Show top labels
                 if self.display_infs and column < len(self.display_infs):
-                    return self.display_infs[column]
+                    inf = self.display_infs[column]
+                    if self.hide_long_names:
+                        return inf.split("|")[-1]
+                    return inf
             else:
                 # Show side labels
                 if self.editor_inst.vert_indexes and column < len(self.editor_inst.vert_indexes):

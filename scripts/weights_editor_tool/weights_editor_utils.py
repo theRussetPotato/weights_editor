@@ -1,4 +1,5 @@
 import sys
+import os
 import random
 import shiboken2
 
@@ -29,6 +30,19 @@ def show_error_msg(title, msg, parent):
 def get_maya_window():
     ptr = OpenMayaUI.MQtUtil.mainWindow()
     return shiboken2.wrapInstance(long(ptr), QtWidgets.QWidget)
+
+
+def load_pixmap(file_name, width=None, height=None):
+    resources_dir = os.path.abspath(os.path.join(__file__, "..", "resources", "icons"))
+    pixmap = QtGui.QPixmap(os.path.join(resources_dir, file_name))
+
+    if width is not None:
+        pixmap = pixmap.scaledToWidth(width, QtCore.Qt.SmoothTransformation)
+
+    if height is not None:
+        pixmap = pixmap.scaledToHeight(height, QtCore.Qt.SmoothTransformation)
+
+    return pixmap
 
 
 def convert_version_string(ver_str):
@@ -117,11 +131,11 @@ def to_mobject(obj):
     Returns:
         An MObject.
     """
-    sel = OpenMaya.MSelectionList()
-    sel.add(obj)
-    node = OpenMaya.MObject()
-    sel.getDependNode(0, node)
-    return node
+    msel_list = OpenMaya.MSelectionList()
+    msel_list.add(obj)
+    mobject = OpenMaya.MObject()
+    msel_list.getDependNode(0, mobject)
+    return mobject
 
 
 def is_curve(obj):
@@ -230,7 +244,7 @@ def get_skin_cluster(obj):
     Returns:
         Object's skinCluster.
     """
-    skin_clusters = cmds.ls(cmds.listHistory(obj), type="skinCluster")
+    skin_clusters = cmds.ls(cmds.listHistory(obj) or [], type="skinCluster")
     if skin_clusters:
         return skin_clusters[0]
 
@@ -289,23 +303,20 @@ def get_influence_ids(skin_cluster):
     """
     has_infs = cmds.skinCluster(skin_cluster, q=True, influence=True) or []
     if not has_infs:
-        return []
-    
-    skin_cluster_node = to_mobject(skin_cluster)
-    skin_cluster_fn = OpenMayaAnim.MFnSkinCluster(skin_cluster_node)
-    
-    # Collect influences
-    inf_array = OpenMaya.MDagPathArray()
-    skin_cluster_fn.influenceObjects(inf_array)
-    
-    # {inf_name(string):id(int)}
+        return {}
+
+    skin_cluster_mobj = to_mobject(skin_cluster)
+    mfn_skin_cluster = OpenMayaAnim.MFnSkinCluster(skin_cluster_mobj)
+
+    inf_mdag_paths = OpenMaya.MDagPathArray()
+    mfn_skin_cluster.influenceObjects(inf_mdag_paths)
+
     inf_ids = {}
-    
-    for x in range(inf_array.length()):
-        inf_path = inf_array[x].partialPathName()
-        inf_id = int(skin_cluster_fn.indexForInfluenceObject(inf_array[x]))
-        inf_ids[inf_id] = inf_path
-    
+
+    for i in range(inf_mdag_paths.length()):
+        inf_id = int(mfn_skin_cluster.indexForInfluenceObject(inf_mdag_paths[i]))
+        inf_ids[inf_id] = inf_mdag_paths[i].partialPathName()
+
     return inf_ids
 
 
@@ -319,7 +330,7 @@ def get_skin_data(skin_cluster):
     
     Returns:
         A dictionary.
-        {vert_index:{"weights":{inf_name:weight_value...}, "dq"float}}
+        {vert_index: {"weights": {inf_name: weight_value...}, "dq": float}}
     """
     # Create skin cluster function set
     skin_cluster_node = to_mobject(skin_cluster)
@@ -360,7 +371,7 @@ def get_skin_data(skin_cluster):
         
         data["weights"] = vert_weights
         
-        dq_value = cmds.getAttr("{0}.bw[{1}]".format(skin_cluster, vert_index) )
+        dq_value = cmds.getAttr("{0}.bw[{1}]".format(skin_cluster, vert_index))
         data["dq"] = dq_value
         
         skin_weights[vert_index] = data
@@ -528,7 +539,7 @@ def collect_influence_colors(skin_cluster, sat=250, brightness=150):
     return inf_colors
 
 
-def display_multi_color_influence(obj, skin_cluster, skin_data, vert_filter=[]):
+def display_multi_color_influence(obj, skin_cluster, skin_data, inf_colors=None, vert_filter=[]):
     """
     Mimics Softimage and displays all influences at once with their own unique color.
     
@@ -536,12 +547,14 @@ def display_multi_color_influence(obj, skin_cluster, skin_data, vert_filter=[]):
         obj(string)
         skin_cluster(string)
         skin_data(dict)
+        inf_colors(dict): Dictionary of influence names and their rgb colors.
         vert_filter(int[]): List of vertex indexes to only operate on.
     
     Returns:
         A dictionary of {inf_name:[r, g, b]...}
     """
-    inf_colors = collect_influence_colors(skin_cluster)
+    if inf_colors is None:
+        inf_colors = collect_influence_colors(skin_cluster)
     
     vert_colors = []
     vert_indexes = []
@@ -874,6 +887,13 @@ def prune_weights(obj, skin_cluster, prune_value):
 
 
 def flood_weights_to_closest(mesh, skin_cluster):
+    """
+    Each vertex will be assigned a full weight to its closest joint.
+
+    Args:
+        mesh(string)
+        skin_cluster(string)
+    """
     influences = get_influence_ids(skin_cluster)
 
     inf_positions = {

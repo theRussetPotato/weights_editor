@@ -7,6 +7,7 @@ from PySide2 import QtCore
 from PySide2 import QtWidgets
 
 from weights_editor_tool.enums import ColorTheme
+from weights_editor_tool import weights_editor_utils as utils
 from weights_editor_tool.widgets import custom_header_view
 
 
@@ -20,6 +21,8 @@ class AbstractWeightsView(QtWidgets.QTableView):
     def __init__(self, view_type, header_orientation, editor_inst):
         super(AbstractWeightsView, self).__init__(editor_inst)
 
+        self.orientation = header_orientation
+
         system_font = QtWidgets.QApplication.font()
 
         self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -31,7 +34,11 @@ class AbstractWeightsView(QtWidgets.QTableView):
         self.table_model = None
         self.old_skin_data = None  # Need to store this to work with undo/redo.
 
-        self.header = custom_header_view.CustomHeaderView(header_orientation, parent=self)
+        self.header = None
+        if header_orientation == QtCore.Qt.Horizontal:
+            self.header = custom_header_view.CustomHeaderView(header_orientation, parent=self)
+        else:
+            self.header = custom_header_view.VerticalHeaderView(header_orientation, parent=self)
         self.header.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.header.customContextMenuRequested.connect(self.header_on_context_trigger)
         self.header.header_left_clicked.connect(self.header_on_left_clicked)
@@ -43,7 +50,7 @@ class AbstractWeightsView(QtWidgets.QTableView):
             self.setVerticalHeader(self.header)
 
         self.display_inf_action = QtWidgets.QAction(self)
-        self.display_inf_action.setText("Display influence")
+        self.display_inf_action.setText("Display influence (middle-click)")
         self.display_inf_action.triggered.connect(self.display_inf_on_triggered)
 
         self.select_inf_verts_action = QtWidgets.QAction(self)
@@ -89,6 +96,9 @@ class AbstractWeightsView(QtWidgets.QTableView):
     def load_table_selection(self, selection_data):
         raise NotImplementedError
 
+    def fit_headers_to_contents(self):
+        raise NotImplementedError
+
     def paintEvent(self, paint_event):
         """
         Shows tooltip when table is empty.
@@ -97,18 +107,30 @@ class AbstractWeightsView(QtWidgets.QTableView):
             if self.editor_inst.obj is None:
                 msg = ("Select a skinned object and push\n"
                        "the button on top edit its weights.")
+                img = utils.load_pixmap("table_view/select_skin.png")
             elif self.editor_inst.skin_cluster is None:
                 msg = "Unable to detect a skinCluster on this object."
+                img = utils.load_pixmap("table_view/sad.png")
             else:
-                msg = "Select the object's vertices."
+                msg = "Select the object's components to edit it."
+                img = utils.load_pixmap("table_view/select_points.png")
             
             qp = QtGui.QPainter(self.viewport())
             if not qp.isActive():
                 qp.begin(self)
-            
+
+            if img is not None:
+                qp.drawPixmap(
+                    self.width() / 2 - img.width() / 2,
+                    self.height() / 2 - img.height(),
+                    img)
+
+            rect = paint_event.rect()
+            rect.setTop(self.height() / 2)
+
             qp.setPen(QtGui.QColor(255, 255, 255))
             qp.setFont(self.font)
-            qp.drawText(paint_event.rect(), QtCore.Qt.AlignCenter, msg)
+            qp.drawText(rect, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop, msg)
             qp.end()
         
         QtWidgets.QTableView.paintEvent(self, paint_event)
@@ -168,12 +190,12 @@ class AbstractWeightsView(QtWidgets.QTableView):
         self.table_model.layoutChanged.emit()
 
     def emit_header_data_changed(self):
-        self.table_model.headerDataChanged.emit(
-            QtCore.Qt.Horizontal, 0, len(self.table_model.display_infs))
+        inf_count = len(self.table_model.display_infs)
 
-    def fit_headers_to_contents(self):
-        for i in range(self.horizontalHeader().count()):
-            self.resizeColumnToContents(i)
+        if self.orientation == QtCore.Qt.Horizontal:
+            self.table_model.headerDataChanged.emit(QtCore.Qt.Horizontal, 0, inf_count)
+        else:
+            self.table_model.headerDataChanged.emit(QtCore.Qt.Vertical, 0, inf_count)
 
     def reset_color_headers(self):
         self.table_model.header_colors = []
@@ -203,6 +225,14 @@ class AbstractWeightsView(QtWidgets.QTableView):
             if index.isValid()
         ]
 
+    def toggle_long_names(self, hidden):
+        self.begin_update()
+        try:
+            self.table_model.hide_long_names = hidden
+        finally:
+            self.end_update()
+            self.fit_headers_to_contents()
+
 
 class AbstractModel(QtCore.QAbstractTableModel):
     
@@ -213,8 +243,11 @@ class AbstractModel(QtCore.QAbstractTableModel):
         self.header_colors = []
         self.display_infs = []
         self.input_value = None  # Used to properly set multiple cells
+        self.hide_long_names = True
 
         self.locked_text = QtGui.QColor(100, 100, 100)
+        self.full_weight_text = QtGui.QColor(QtCore.Qt.white)
+        self.low_weight_text = QtGui.QColor(QtCore.Qt.yellow)
         self.zero_weight_text = QtGui.QColor(255, 50, 50)
         self.header_locked_text = QtGui.QColor(QtCore.Qt.black)
         self.header_active_inf_back_color = QtGui.QColor(0, 120, 180)
@@ -227,13 +260,13 @@ class AbstractModel(QtCore.QAbstractTableModel):
 
     def data(self, index, role):
         raise NotImplementedError
-    
+
     def setData(self, index, value, role):
         raise NotImplementedError
-    
+
     def headerData(self, column, orientation, role):
         raise NotImplementedError
-    
+
     def flags(self, index):
         return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEditable
 

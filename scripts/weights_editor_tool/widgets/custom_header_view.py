@@ -15,7 +15,7 @@ class CustomHeaderView(QtWidgets.QHeaderView):
     def __init__(self, orientation, parent=None):
         super(CustomHeaderView, self).__init__(orientation, parent)
         self.last_index = 0
-    
+
     def mousePressEvent(self, event):
         index = self.logicalIndexAt(event.x(), event.y())
         self.last_index = index
@@ -28,3 +28,18 @@ class CustomHeaderView(QtWidgets.QHeaderView):
             self.header_right_clicked.emit(index)
         
         return QtWidgets.QHeaderView.mousePressEvent(self, event)
+
+
+class VerticalHeaderView(CustomHeaderView):
+
+    """
+    Resizing vertical's width dynamically seems to be weird.
+    Can only reliably do it by overriding `sizeHint`.
+    """
+
+    def __init__(self, orientation, parent=None):
+        super(VerticalHeaderView, self).__init__(orientation, parent)
+        self.size = QtCore.QSize(0, 0)
+
+    def sizeHint(self):
+        return self.size
