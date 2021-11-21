@@ -1,12 +1,19 @@
-# Weights Editor
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/14979497/142756771-08a485c8-a2ce-40aa-9622-a09039c98f81.png" />
+</p>
 
-A tool to edit skin weights on a vertex level.<br>
-It was heavily influenced by Softimage's weight editor.
+<p align="center">
+A skin weights component editor inspired from Softimage.
+</p>
 
-![weightsEditorTable](https://user-images.githubusercontent.com/14979497/130363389-e8066ff5-5469-41d2-bede-c395baf90716.png)<br>
+# Interface
+
+![weightsEditorTable](https://user-images.githubusercontent.com/14979497/142756715-f782bc31-a079-4f20-8247-f29e91501b62.png)<br>
 _Interface using the table view_
 
-![weightsEditorList](https://user-images.githubusercontent.com/14979497/130364248-ee8185c4-c03d-4e28-a219-f0cfcec54269.png)<br>
+<br>
+
+![weightsEditorList](https://user-images.githubusercontent.com/14979497/142756748-acfb8f3b-f66a-4b5d-a80a-65211c89fb14.png)<br>
 _Interface using the list view_
 
 ## Features
