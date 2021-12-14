@@ -1,9 +1,8 @@
-import os
 import fnmatch
 from functools import partial
 
-import maya.cmds as cmds
-import maya.OpenMaya as OpenMaya
+from maya import cmds
+from maya import OpenMaya
 
 from PySide2 import QtGui
 from PySide2 import QtCore

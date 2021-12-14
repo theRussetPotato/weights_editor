@@ -1,16 +1,13 @@
-import copy
-
 from PySide2 import QtCore
 from PySide2 import QtWidgets
 
-from weights_editor_tool import weights_editor_utils as utils
 from weights_editor_tool.widgets import abstract_weights_view
 
 
 class ListView(abstract_weights_view.AbstractWeightsView):
 
     def __init__(self, editor_inst):
-        super(ListView, self).__init__("list", QtCore.Qt.Vertical, editor_inst)
+        super(ListView, self).__init__(QtCore.Qt.Vertical, editor_inst)
 
         self.sort_inf_name_action = QtWidgets.QAction(self)
         self.sort_inf_name_action.setText("Sort by inf name")
@@ -39,13 +36,11 @@ class ListView(abstract_weights_view.AbstractWeightsView):
         if self.model().input_value is not None:
             self.model().input_value = None
             
-            current_obj = self.editor_inst.get_obj_by_name(self.editor_inst.obj)
-            
             self.editor_inst.add_undo_command(
                 "Set skin weights",
-                current_obj,
+                self.editor_inst.obj.obj,
                 self.old_skin_data,
-                copy.deepcopy(self.editor_inst.skin_data),
+                self.editor_inst.obj.skin_cluster.skin_data.copy(),
                 self.editor_inst.vert_indexes,
                 self.save_table_selection())
         
@@ -163,7 +158,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
         width = 0
         infs = self.display_infs()
 
-        if infs:
+        if infs and self.editor_inst.vert_indexes:
             if self.table_model.hide_long_names:
                 infs = [inf.split("|")[-1] for inf in infs]
 
@@ -185,10 +180,13 @@ class ListModel(abstract_weights_view.AbstractModel):
         self.average_weights = {}
     
     def rowCount(self, parent):
-        return len(self.display_infs)
+        if self.editor_inst.vert_indexes:
+            return len(self.display_infs)
+        else:
+            return 0
     
     def columnCount(self, parent):
-        if self.display_infs:
+        if self.display_infs and self.editor_inst.vert_indexes:
             return 1
         else:
             return 0
@@ -252,10 +250,8 @@ class ListModel(abstract_weights_view.AbstractModel):
         inf = self.get_inf(index.row())
 
         for vert_index in self.editor_inst.vert_indexes:
-            utils.update_weight_value(
-                self.editor_inst.skin_data[vert_index]["weights"],
-                inf,
-                value)
+            self.editor_inst.obj.skin_cluster.skin_data.update_weight_value(
+                vert_index, inf, value)
 
         return True
     
@@ -308,7 +304,7 @@ class ListModel(abstract_weights_view.AbstractModel):
 
         if inf not in self.average_weights:
             values = [
-                self.editor_inst.skin_data[vert_index]["weights"].get(inf) or 0
+                self.editor_inst.obj.skin_cluster.skin_data[vert_index]["weights"].get(inf) or 0
                 for vert_index in self.editor_inst.vert_indexes
             ]
 

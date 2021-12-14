@@ -12,6 +12,9 @@ Limitations:
 Example of usage:
     from weights_editor_tool import weights_editor
     weights_editor.run()
+
+TODO:
+    - Implement private accessors
 """
 
 import os
@@ -22,17 +25,19 @@ import shiboken2
 import webbrowser
 from functools import partial
 
-import maya.cmds as cmds
-import maya.mel as mel
-import maya.OpenMaya as OpenMaya
+from maya import cmds
+from maya import mel
+from maya import OpenMaya
 
 from PySide2 import QtGui
 from PySide2 import QtCore
 from PySide2 import QtWidgets
 from PySide2 import QtNetwork
 
+from weights_editor_tool import constants
 from weights_editor_tool.enums import ColorTheme, WeightOperation, SmoothOperation
 from weights_editor_tool import weights_editor_utils as utils
+from weights_editor_tool.classes.skinned_obj import SkinnedObj
 from weights_editor_tool.classes import hotkey as hotkey_module
 from weights_editor_tool.classes import command_edit_weights
 from weights_editor_tool.classes import command_lock_infs
@@ -69,15 +74,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.undo_stack = QtWidgets.QUndoStack(parent=self)
         self.undo_stack.setUndoLimit(30)
 
-        self.obj = None
-        self.skin_cluster = None
-        self.vert_count = None
+        self.obj = SkinnedObj.create_empty()
         self.color_inf = None
         self.copied_vertex = None
         self.vert_indexes = []
         self.infs = []
         self.locks = []
-        self.skin_data = {}
         self.inf_colors = {}
         self.color_style = ColorTheme.Max
         self.block_selection_cb = False
@@ -561,7 +563,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.show_all_button = self.create_button(
             "Show all influences", "interface/show.png",
             tool_tip="Forces the table to show all influences.",
-            click_event=self.refresh_on_clicked)
+            click_event=self.selection_on_changed)
         self.show_all_button.setCheckable(True)
 
         self.hide_colors_button = self.create_button(
@@ -682,14 +684,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.update_window_title()
         self.resize(1200, 1000)
 
-    def update_window_title(self):
-        title = "Weights Editor v{ver}".format(ver=self.version)
-        if self.obj:
-            title += " - {obj}".format(obj=self.obj.split("|")[-1])
-        self.setWindowTitle(title)
 #
 # Custom functions
 #
+
+    def update_window_title(self):
+        title = "Weights Editor v{ver}".format(ver=self.version)
+        if self.obj.is_valid():
+            title += " - {obj}".format(obj=self.obj.short_name())
+        self.setWindowTitle(title)
 
     def get_active_weights_view(self):
         if self.toggle_view_button.isChecked():
@@ -772,7 +775,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         button.setChecked(not button.isChecked())
 
     def fetch_latest_tool_version(self):
-        url = QtCore.QUrl("https://api.github.com/repos/theRussetPotato/weights_editor/releases/latest")
+        url = QtCore.QUrl(constants.GITHUB_LATEST_RELEASE)
 
         request = QtNetwork.QNetworkRequest()
         request.setUrl(url)
@@ -835,10 +838,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
                     QtGui.QKeySequence(hotkey.key_code()), hotkey.func))
 
         self.update_tooltips()
-
-    def get_obj_by_name(self, obj):
-        if obj and cmds.objExists(obj):
-            return obj
 
     def set_undo_buttons_enabled_state(self):
         """
@@ -1020,15 +1019,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view.begin_update()
 
         try:
-            last_obj = self.get_obj_by_name(self.obj)
-            if last_obj is not None:
-                self.hide_vert_colors(last_obj)
+            self.obj.hide_vert_colors()
 
             # Reset values
-            self.obj = obj
-            self.skin_cluster = None
-            self.skin_data = {}
-            self.vert_count = None
+            self.obj = SkinnedObj.create(obj)
             self.infs = []
             self.in_component_mode = utils.is_in_component_mode()
 
@@ -1036,39 +1030,25 @@ class WeightsEditor(QtWidgets.QMainWindow):
             self.undo_stack.clear()
             self.set_undo_buttons_enabled_state()
 
-            current_obj = self.get_obj_by_name(self.obj)
-
             # Collect new values
-            if current_obj is not None:
-                if utils.is_curve(current_obj):
-                    curve_degree = cmds.getAttr("{0}.degree".format(current_obj))
-                    curve_spans = cmds.getAttr("{0}.spans".format(current_obj))
-                    self.vert_count = curve_degree + curve_spans
+            if self.obj.is_valid() and self.obj.has_valid_skin():
+                if self.obj.is_skin_corrupt():
+                    utils.show_error_msg(
+                        "Skin cluster error!",
+                        "The mesh's vert count doesn't match the skin cluster's weight count!\n"
+                        "This is likely because changes were done on the mesh with an enabled skinCluster.\n"
+                        "\n"
+                        "You may have to duplicate the mesh and use copy weights to fix it.",
+                        self)
+                    return
                 else:
-                    self.vert_count = cmds.polyEvaluate(current_obj, vertex=True)
-
-                skin_cluster = utils.get_skin_cluster(obj)
-
-                if skin_cluster:
-                    # Maya doesn't update this attribute if topology changes were done while it has a skinCluster.
-                    weights_count = len(cmds.getAttr("{0}.weightList[*]".format(skin_cluster)))
-
-                    if self.vert_count == weights_count:
-                        self.skin_cluster = skin_cluster
-
-                        self.infs = self.get_all_infs()
-                    else:
-                        msg = ("The mesh's vert count doesn't match the skin cluster's weight count!\n"
-                               "This is likely because changes were done on the mesh with an enabled skinCluster.\n"
-                               "\n"
-                               "You may have to duplicate the mesh and use copy weights to fix it.")
-                        utils.show_error_msg("Skin cluster error!", msg, self)
+                    self.infs = self.get_all_infs()
 
             self.update_inf_list()
 
             caption = "Load object's skin data"
-            if self.obj:
-                caption = self.obj.split("|")[-1]
+            if self.obj.is_valid():
+                caption = self.obj.short_name()
             self.pick_obj_button.setText(caption)
 
             self.update_window_title()
@@ -1077,15 +1057,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
         finally:
             weights_view.end_update()
 
-        if current_obj is not None:
+        if self.obj.is_valid():
             if self.infs:
                 self.auto_assign_color_inf()
 
             if not self.hide_colors_button.isChecked() and self.in_component_mode:
-                utils.switch_to_color_set(current_obj)
+                self.obj.switch_to_color_set()
                 self.update_vert_colors()
             else:
-                self.hide_vert_colors(current_obj)
+                self.obj.hide_vert_colors()
     
     def collect_inf_locks(self):
         """
@@ -1123,8 +1103,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
         Gets and returns a list of all influences from the active skinCluster.
         Also collects unique colors of each influence for the Softimage theme.
         """
-        self.inf_colors = utils.collect_influence_colors(self.skin_cluster)
-        return sorted(cmds.skinCluster(self.skin_cluster, q=True, inf=True) or [])
+        self.inf_colors = self.obj.skin_cluster.collect_influence_colors()
+        return sorted(self.obj.skin_cluster.get_influences())
     
     def get_selected_infs(self):
         """
@@ -1132,9 +1112,9 @@ class WeightsEditor(QtWidgets.QMainWindow):
         """
         infs = set()
 
-        if self.skin_data:
+        if self.obj.has_valid_skin():
             for vert_index in self.vert_indexes:
-                vert_infs = self.skin_data[vert_index]["weights"].keys()
+                vert_infs = self.obj.skin_cluster.skin_data.get_vertex_infs(vert_index)
                 infs = infs.union(vert_infs)
         
         return sorted(list(infs))
@@ -1164,9 +1144,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         weights_view = self.get_active_weights_view()
         weights_view.begin_update()
-        
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is None:
+
+        if not self.obj.is_valid():
             return
 
         selection_data = None
@@ -1174,11 +1153,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
             selection_data = weights_view.save_table_selection()
         
         if update_skin_data:
-            if self.skin_cluster:
-                self.skin_data = utils.get_skin_data(self.skin_cluster)
+            self.obj.update_skin_data()
         
         if update_verts:
-            self.vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
+            self.vert_indexes = utils.extract_indexes(
+                utils.get_vert_indexes(self.obj.obj))
         
         if update_infs:
             self.collect_display_infs()
@@ -1208,8 +1187,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             input_value(float): Value between 0 to 1.0.
             mode(enums.WeightOperation)
         """
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is None:
+        if not self.obj.is_valid():
             return
 
         weights_view = self.get_active_weights_view()
@@ -1220,11 +1198,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
             return
 
         sel_vert_indexes = set()
-        new_skin_data = copy.deepcopy(self.skin_data)
+        old_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         for vert_index, inf in verts_and_infs:
-            weight_data = new_skin_data[vert_index]["weights"]
-            old_value = weight_data.get(inf) or 0.0
+            old_weight_data = old_skin_data[vert_index]["weights"]
+            old_value = old_weight_data.get(inf) or 0.0
 
             new_value = None
 
@@ -1238,7 +1216,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             elif mode == WeightOperation.Percentage:
                 new_value = utils.clamp(0.0, 1.0, old_value * input_value)
 
-            utils.update_weight_value(weight_data, inf, new_value)
+            self.obj.skin_cluster.skin_data.update_weight_value(vert_index, inf, new_value)
             
             sel_vert_indexes.add(vert_index)
         
@@ -1259,22 +1237,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
         
         self.add_undo_command(
             description,
-            current_obj,
-            copy.deepcopy(self.skin_data),
-            new_skin_data,
+            self.obj.obj,
+            old_skin_data,
+            self.obj.skin_cluster.skin_data.copy(),
             list(sel_vert_indexes),
             weights_view.save_table_selection())
-
-    def hide_vert_colors(self, obj=None):
-        if obj is None:
-            obj = self.obj
-
-        current_obj = self.get_obj_by_name(obj)
-        if not current_obj:
-            return
-
-        utils.toggle_display_colors(current_obj, False)
-        utils.delete_temp_inputs(current_obj)
 
     def update_vert_colors(self, vert_filter=[]):
         """
@@ -1286,9 +1253,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if self.hide_colors_button.isChecked():
             return
 
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is not None:
-            if utils.is_curve(current_obj):
+        if self.obj.is_valid():
+            if utils.is_curve(self.obj.obj):
                 return
         
         if not self.infs:
@@ -1300,22 +1266,17 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if self.color_style == ColorTheme.Softimage:
             self.set_color_inf(None)
 
-            utils.display_multi_color_influence(
-                current_obj,
-                self.skin_cluster,
-                self.skin_data,
+            self.obj.display_multi_color_influence(
                 inf_colors=self.inf_colors,
                 vert_filter=vert_filter)
         else:
             if self.color_inf is not None:
-                utils.display_influence(
-                    current_obj,
-                    self.skin_data,
+                self.obj.display_influence(
                     self.color_inf,
                     color_style=self.color_style,
                     vert_filter=vert_filter)
 
-        utils.toggle_display_colors(current_obj, True)
+        utils.toggle_display_colors(self.obj.obj, True)
     
     def switch_color_style(self, color_theme):
         """
@@ -1342,28 +1303,28 @@ class WeightsEditor(QtWidgets.QMainWindow):
         Args:
             smooth_operation(SmoothOperation)
         """
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is None:
+        if not self.obj.is_valid():
             OpenMaya.MGlobal.displayWarning("No object to operate on.")
             return
 
-        selected_vertexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
+        selected_vertexes = utils.extract_indexes(
+            utils.get_vert_indexes(self.obj.obj))
+
         if not selected_vertexes:
             OpenMaya.MGlobal.displayWarning("No vertexes are selected.")
             return
 
-        old_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        old_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
 
-        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
+        sel_vert_indexes = utils.extract_indexes(
+            utils.get_vert_indexes(self.obj.obj))
 
         if smooth_operation == SmoothOperation.Normal:
-            utils.smooth_weights(
-                current_obj,
+            self.obj.smooth_weights(
                 selected_vertexes,
-                self.skin_data,
                 self.smooth_strength_spinbox.value())
 
             self.recollect_table_data(update_skin_data=False, update_verts=False)
@@ -1377,11 +1338,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         self.update_vert_colors(vert_filter=selected_vertexes)
 
-        new_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        new_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         self.add_undo_command(
             undo_caption,
-            current_obj,
+            self.obj.obj,
             old_skin_data,
             new_skin_data,
             sel_vert_indexes,
@@ -1454,24 +1415,20 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.inf_list.apply_filter("*" + self.inf_filter_edit.text() + "*")
 
     def mirror_weights(self, selection_only):
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is None:
+        if not self.obj.is_valid():
             return
 
-        old_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        old_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
 
         if selection_only:
-            vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
+            vert_indexes = utils.extract_indexes(
+                utils.get_vert_indexes(self.obj.obj))
         else:
-            vert_indexes = utils.extract_indexes(utils.get_all_vert_indexes(current_obj))
-
-        vert_plugs = [
-            "{0}.vtx[{1}]".format(current_obj, index)
-            for index in vert_indexes
-        ]
+            vert_indexes = utils.extract_indexes(
+                utils.get_all_vert_indexes(self.obj.obj))
 
         mirror_mode = self.mirror_mode.currentText().lstrip("-")
         mirror_inverse = self.mirror_mode.currentText().startswith("-")
@@ -1494,23 +1451,23 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         inf_association = inf_options[self.mirror_inf.currentText()]
 
-        utils.mirror_skin_weights(
-            vert_plugs,
+        self.obj.mirror_skin_weights(
             mirror_mode,
             mirror_inverse,
             surface_association,
-            inf_association)
+            inf_association,
+            vert_filter=vert_indexes)
 
         self.recollect_table_data(update_verts=False)
 
         vert_filter = vert_indexes if selection_only else []
         self.update_vert_colors(vert_filter=vert_filter)
 
-        new_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        new_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         self.add_undo_command(
             "Mirror weights",
-            current_obj,
+            self.obj.obj,
             old_skin_data,
             new_skin_data,
             vert_indexes,
@@ -1562,10 +1519,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         Then refreshes table to be in sync.
         """
         # Check if the current object is valid.
-        current_obj = self.get_obj_by_name(self.obj)
-        current_skin_cluster = self.get_obj_by_name(self.skin_cluster)
-
-        if current_obj is not None and current_skin_cluster is not None:
+        if self.obj.is_valid() and self.obj.has_valid_skin():
             # Toggle influence colors if component selection mode changes.
             now_in_component_mode = utils.is_in_component_mode()
 
@@ -1575,7 +1529,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
                     if now_in_component_mode:
                         self.update_vert_colors()
                     else:
-                        self.hide_vert_colors(current_obj)
+                        self.obj.hide_vert_colors()
 
             self.in_component_mode = now_in_component_mode
 
@@ -1601,10 +1555,9 @@ class WeightsEditor(QtWidgets.QMainWindow):
         try:
             self.save_state()
 
-            current_obj = self.get_obj_by_name(self.obj)
-            if current_obj is not None:
-                utils.toggle_display_colors(current_obj, False)
-                utils.delete_temp_inputs(current_obj)
+            if self.obj.is_valid():
+                utils.toggle_display_colors(self.obj.obj, False)
+                utils.delete_temp_inputs(self.obj.obj)
         finally:
             self.remove_selection_callback()
             self.remove_shortcuts()
@@ -1627,7 +1580,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             self.toggle_selected_inf_locks()
     
     def refresh_on_clicked(self):
-        self.update_obj(self.obj)
+        self.update_obj(self.obj.obj)
     
     def auto_update_on_toggled(self):
         enable_cb = self.auto_update_table_action.isChecked()
@@ -1671,8 +1624,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             load_selection=False)
 
     def select_by_infs_on_clicked(self):
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is None:
+        if not self.obj.is_valid():
             OpenMaya.MGlobal.displayError("The current object isn't set to anything.")
             return
         
@@ -1692,33 +1644,32 @@ class WeightsEditor(QtWidgets.QMainWindow):
             
             infs.append(inf_name)
         
-        utils.select_inf_vertexes(current_obj, infs, self.skin_data)
+        self.obj.select_inf_vertexes(infs)
     
     def prune_on_clicked(self):
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is None:
+        if not self.obj.is_valid():
             return
         
-        old_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        old_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
         
-        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
-        
-        is_pruned = utils.prune_weights(current_obj, self.skin_cluster, self.prune_spinbox.value())
-        if not is_pruned:
+        sel_vert_indexes = utils.extract_indexes(
+            utils.get_vert_indexes(self.obj.obj))
+
+        if not self.obj.prune_weights(self.prune_spinbox.value()):
             return
         
         self.recollect_table_data(update_verts=False)
         
         self.update_vert_colors(vert_filter=sel_vert_indexes)
         
-        new_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        new_skin_data = self.obj.skin_cluster.skin_data.copy()
         
         self.add_undo_command(
             "Prune weights",
-            current_obj,
+            self.obj.obj,
             old_skin_data,
             new_skin_data,
             sel_vert_indexes,
@@ -1732,17 +1683,18 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.mirror_weights(False)
 
     def copy_vertex_on_clicked(self):
-        current_obj = self.get_obj_by_name(self.obj)
-        if not current_obj:
+        if not self.obj.is_valid():
             return
 
-        vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
+        vert_indexes = utils.extract_indexes(
+            utils.get_vert_indexes(self.obj.obj))
+
         if not vert_indexes:
             OpenMaya.MGlobal.displayError("Need a vertex to be selected.")
             return
 
         vert_index = vert_indexes[0]
-        self.copied_vertex = copy.deepcopy(self.skin_data[vert_index])
+        self.copied_vertex = self.obj.skin_cluster.skin_data.copy_vertex(vert_index)
         OpenMaya.MGlobal.displayInfo("Copied vertex {}".format(vert_index))
 
     def paste_vertex_on_clicked(self):
@@ -1750,25 +1702,27 @@ class WeightsEditor(QtWidgets.QMainWindow):
             OpenMaya.MGlobal.displayError("Need to copy a vertex first.")
             return
 
-        current_obj = self.get_obj_by_name(self.obj)
-        if not current_obj:
+        if not self.obj.is_valid():
             return
 
-        vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
+        vert_indexes = utils.extract_indexes(
+            utils.get_vert_indexes(self.obj.obj))
+
         if not vert_indexes:
             return
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
-        old_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
-        new_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
-        
+        old_skin_data = self.obj.skin_cluster.skin_data.copy()
+
         for vert_index in vert_indexes:
-            new_skin_data[vert_index] = copy.deepcopy(self.copied_vertex)
-        
+            self.obj.skin_cluster.skin_data[vert_index] = copy.deepcopy(self.copied_vertex)
+
+        new_skin_data = self.obj.skin_cluster.skin_data.copy()
+
         self.add_undo_command(
             "Paste vertex",
-            current_obj,
+            self.obj.obj,
             old_skin_data,
             new_skin_data,
             vert_indexes,
@@ -1798,37 +1752,32 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.set_on_clicked()
 
     def hide_colors_on_toggled(self, checked):
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is not None and self.in_component_mode:
+        if self.obj.is_valid() and self.in_component_mode:
             self.update_vert_colors()
-            utils.toggle_display_colors(current_obj, not checked)
+            utils.toggle_display_colors(self.obj.obj, not checked)
 
     def flood_to_closest_on_clicked(self):
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is None:
+        if not self.obj.is_valid() or not self.obj.has_valid_skin():
             return
 
-        if not self.skin_cluster:
-            return
-
-        old_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        old_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
 
-        vert_indexes = utils.get_all_vert_indexes(current_obj)
+        vert_indexes = utils.extract_indexes(
+            utils.get_all_vert_indexes(self.obj.obj))
 
-        utils.flood_weights_to_closest(current_obj, self.skin_cluster)
+        self.obj.flood_weights_to_closest()
 
         self.recollect_table_data(update_verts=False)
-
         self.update_vert_colors()
 
-        new_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        new_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         self.add_undo_command(
             "Flood weights to closest",
-            current_obj,
+            self.obj.obj,
             old_skin_data,
             new_skin_data,
             vert_indexes,
@@ -1877,7 +1826,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         dialog.deleteLater()
 
     def github_page_on_triggered(self):
-        webbrowser.open("https://github.com/theRussetPotato/weights_editor")
+        webbrowser.open(constants.GITHUB_HOME)
 
     def toggle_view_on_toggled(self, enabled):
         self.limit_warning_label.setVisible(False)
@@ -1942,12 +1891,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
         """
         Adds a very small weight value from selected influences to selected vertexes.
         """
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is None:
+        if not self.obj.is_valid():
             OpenMaya.MGlobal.displayError("There's no active object to work on.")
             return
         
-        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(current_obj))
+        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(self.obj.obj))
         if not sel_vert_indexes:
             OpenMaya.MGlobal.displayError("There's no selected vertexes to set on.")
             return
@@ -1971,8 +1919,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             OpenMaya.MGlobal.displayError("Nothing is selected in the influence list.")
             return
         
-        old_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
-        new_skin_data = copy.deepcopy(WeightsEditor.instance.skin_data)
+        old_skin_data = self.obj.skin_cluster.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
@@ -1980,17 +1927,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
         # Add infs by setting a very low value so it doesn't effect other weights too much.
         for inf in sel_infs:
             for vert_index in sel_vert_indexes:
-                weight_data = new_skin_data[vert_index]["weights"]
-                
-                # No need to change it if it's already weighted to the vert.
-                if weight_data.get(inf) is not None:
-                    continue
-                
-                utils.update_weight_value(weight_data, inf, 0.001)
-        
+                weight_data = self.obj.skin_cluster.skin_data[vert_index]["weights"]
+                if weight_data.get(inf) is None:
+                    self.obj.skin_cluster.skin_data.update_weight_value(vert_index, inf, 0.001)
+
+        new_skin_data = self.obj.skin_cluster.skin_data.copy()
+
         self.add_undo_command(
             "Add influence to verts",
-            current_obj,
+            self.obj.obj,
             old_skin_data,
             new_skin_data,
             sel_vert_indexes,
@@ -2016,9 +1961,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             load_selection=False)
 
     def select_inf_verts_on_triggered(self, inf):
-        current_obj = self.get_obj_by_name(self.obj)
-        if current_obj is not None:
-            utils.select_inf_vertexes(current_obj, [inf], self.skin_data)
+        if self.obj.is_valid():
+            self.obj.select_inf_vertexes([inf])
 
 
 def run():

@@ -1,6 +1,4 @@
-import copy
-
-import maya.cmds as cmds
+from maya import cmds
 
 from PySide2 import QtGui
 from PySide2 import QtCore
@@ -18,7 +16,7 @@ class AbstractWeightsView(QtWidgets.QTableView):
     display_inf_triggered = QtCore.Signal(str)
     select_inf_verts_triggered = QtCore.Signal(str)
 
-    def __init__(self, view_type, header_orientation, editor_inst):
+    def __init__(self, header_orientation, editor_inst):
         super(AbstractWeightsView, self).__init__(editor_inst)
 
         self.orientation = header_orientation
@@ -29,7 +27,6 @@ class AbstractWeightsView(QtWidgets.QTableView):
         self.setAlternatingRowColors(True)
         self.setGridStyle(QtCore.Qt.DashLine)
         self.font = QtGui.QFont(system_font.family(), system_font.pixelSize())
-        self.view_type = view_type
         self.editor_inst = editor_inst
         self.table_model = None
         self.old_skin_data = None  # Need to store this to work with undo/redo.
@@ -104,11 +101,11 @@ class AbstractWeightsView(QtWidgets.QTableView):
         Shows tooltip when table is empty.
         """
         if self.model().rowCount(self) == 0:
-            if self.editor_inst.obj is None:
+            if not self.editor_inst.obj.is_valid():
                 msg = ("Select a skinned object and push\n"
                        "the button on top edit its weights.")
                 img = utils.load_pixmap("table_view/select_skin.png")
-            elif self.editor_inst.skin_cluster is None:
+            elif not self.editor_inst.obj.has_valid_skin():
                 msg = "Unable to detect a skinCluster on this object."
                 img = utils.load_pixmap("table_view/sad.png")
             else:
@@ -147,7 +144,7 @@ class AbstractWeightsView(QtWidgets.QTableView):
         # Begins edit on current cell.
         if event.button() == QtCore.Qt.MouseButton.RightButton:
             # Save this prior to any changes.
-            self.old_skin_data = copy.deepcopy(self.editor_inst.skin_data)
+            self.old_skin_data = self.editor_inst.obj.skin_cluster.skin_data.copy()
             self.edit(self.currentIndex())
 
     def header_on_context_trigger(self, point):

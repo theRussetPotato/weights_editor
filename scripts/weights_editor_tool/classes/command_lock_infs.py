@@ -1,4 +1,4 @@
-import maya.cmds as cmds
+from maya import cmds
 
 from PySide2 import QtWidgets
 

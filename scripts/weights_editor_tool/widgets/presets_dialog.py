@@ -1,8 +1,8 @@
+from maya import cmds
+
 from PySide2 import QtCore
 from PySide2 import QtGui
 from PySide2 import QtWidgets
-
-import maya.cmds as cmds
 
 from weights_editor_tool import weights_editor_utils as utils
 

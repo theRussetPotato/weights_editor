@@ -2,6 +2,7 @@ from PySide2 import QtCore
 from PySide2 import QtGui
 from PySide2 import QtWidgets
 
+from weights_editor_tool import constants
 from weights_editor_tool import weights_editor_utils as utils
 
 
@@ -64,7 +65,7 @@ class AboutDialog(QtWidgets.QDialog):
 
         self.bugs_groupbox = self.wrap_groupbox(
             "Bugs and features",
-            "Please report any bugs on its <b><a href='https://www.github.com/theRussetPotato/weights_editor/issues'>GitHub issues page</a></b>")
+            "Please report any bugs on its <b><a href='{url}'>GitHub issues page</a></b>".format(url=constants.GITHUB_ISSUES))
 
         self.scroll_layout = QtWidgets.QVBoxLayout()
         self.scroll_layout.addWidget(self.table_tips_groupbox)

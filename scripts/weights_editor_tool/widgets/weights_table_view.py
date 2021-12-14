@@ -1,6 +1,4 @@
-import copy
-
-import maya.cmds as cmds
+from maya import cmds
 
 from PySide2 import QtCore
 from PySide2 import QtWidgets
@@ -14,7 +12,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
     update_ended = QtCore.Signal(bool)
 
     def __init__(self, editor_inst):
-        super(TableView, self).__init__("table", QtCore.Qt.Horizontal, editor_inst)
+        super(TableView, self).__init__(QtCore.Qt.Horizontal, editor_inst)
 
         self.selected_rows = set()
         self.header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
@@ -54,13 +52,11 @@ class TableView(abstract_weights_view.AbstractWeightsView):
                 self.model().get_vert_index(index.row())
                 for index in self.selectedIndexes()))
             
-            current_obj = self.editor_inst.get_obj_by_name(self.editor_inst.obj)
-            
             self.editor_inst.add_undo_command(
                 "Set skin weights",
-                current_obj,
+                self.editor_inst.obj.obj,
                 self.old_skin_data,
-                copy.deepcopy(self.editor_inst.skin_data),
+                self.editor_inst.obj.skin_cluster.skin_data.copy(),
                 vert_indexes,
                 self.save_table_selection())
         
@@ -93,14 +89,13 @@ class TableView(abstract_weights_view.AbstractWeightsView):
 
         self.selected_rows = rows
 
-        current_obj = self.editor_inst.get_obj_by_name(self.editor_inst.obj)
-        if current_obj is not None:
+        if self.editor_inst.obj.is_valid():
             component = "vtx"
-            if utils.is_curve(current_obj):
+            if utils.is_curve(self.editor_inst.obj.obj):
                 component = "cv"
 
             vertex_list = [
-                "{0}.{1}[{2}]".format(current_obj, component, self.editor_inst.vert_indexes[row])
+                "{0}.{1}[{2}]".format(self.editor_inst.obj.obj, component, self.editor_inst.vert_indexes[row])
                 for row in rows
             ]
         else:
@@ -129,7 +124,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
         else:
             self.editor_inst.vert_indexes = sorted(
                 self.editor_inst.vert_indexes,
-                key=lambda x: self.editor_inst.skin_data[x]["weights"].get(inf) or 0.0,
+                key=lambda x: self.editor_inst.obj.skin_cluster.skin_data[x]["weights"].get(inf) or 0.0,
                 reverse=order)
 
         self.end_update()
@@ -245,11 +240,13 @@ class TableModel(abstract_weights_view.AbstractModel):
         self.max_display_count = 5000
     
     def rowCount(self, parent):
-        return min(
-            len(self.editor_inst.vert_indexes), self.max_display_count)
+        return min(len(self.editor_inst.vert_indexes), self.max_display_count)
     
     def columnCount(self, parent):
-        return len(self.display_infs)
+        if self.editor_inst.vert_indexes:
+            return len(self.display_infs)
+        else:
+            return 0
 
     def data(self, index, role):
         if not index.isValid():
@@ -318,7 +315,8 @@ class TableModel(abstract_weights_view.AbstractModel):
         # Distribute the weights.
         inf = self.get_inf(index.column())
         vert_index = self.get_vert_index(index.row())
-        utils.update_weight_value(self.editor_inst.skin_data[vert_index]["weights"], inf, value)
+        self.editor_inst.obj.skin_cluster.skin_data.update_weight_value(
+            vert_index, inf, value)
         
         return True
     
@@ -373,4 +371,4 @@ class TableModel(abstract_weights_view.AbstractModel):
     def get_value_by_index(self, index):
         inf = self.get_inf(index.column())
         vert_index = self.get_vert_index(index.row())
-        return self.editor_inst.skin_data[vert_index]["weights"].get(inf) or 0
+        return self.editor_inst.obj.skin_cluster.skin_data[vert_index]["weights"].get(inf) or 0

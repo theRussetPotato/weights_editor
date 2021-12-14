@@ -1,8 +1,8 @@
-import maya.cmds as cmds
+from maya import cmds
 
 from PySide2 import QtWidgets
 
-from weights_editor_tool import weights_editor_utils as utils
+from weights_editor_tool.widgets import weights_table_view
 
 
 class CommandEditWeights(QtWidgets.QUndoCommand):
@@ -44,8 +44,8 @@ class CommandEditWeights(QtWidgets.QUndoCommand):
         old_column_count = weights_view.horizontalHeader().count()
         weights_view.begin_update()
 
-        self.editor_cls.instance.skin_data = self.new_skin_data
-        utils.set_skin_weights(self.obj, self.new_skin_data, self.vert_indexes, normalize=True)
+        self.editor_cls.instance.obj.skin_cluster.skin_data = self.new_skin_data
+        self.editor_cls.instance.obj.set_skin_weights(self.vert_indexes, normalize=True)
         self.editor_cls.instance.update_vert_colors(vert_filter=self.vert_indexes)
         self.editor_cls.instance.collect_display_infs()
 
@@ -54,7 +54,8 @@ class CommandEditWeights(QtWidgets.QUndoCommand):
 
         weights_view.end_update()
 
-        if weights_view.view_type == "table" and weights_view.horizontalHeader().count() != old_column_count:
+        if isinstance(weights_view, weights_table_view.TableView) and \
+                weights_view.horizontalHeader().count() != old_column_count:
             weights_view.fit_headers_to_contents()
 
     def undo(self):
@@ -65,8 +66,8 @@ class CommandEditWeights(QtWidgets.QUndoCommand):
         old_column_count = weights_view.horizontalHeader().count()
         weights_view.begin_update()
 
-        self.editor_cls.instance.skin_data = self.old_skin_data
-        utils.set_skin_weights(self.obj, self.old_skin_data, self.vert_indexes, normalize=True)
+        self.editor_cls.instance.obj.skin_cluster.skin_data = self.old_skin_data
+        self.editor_cls.instance.obj.set_skin_weights(self.vert_indexes, normalize=True)
         self.editor_cls.instance.update_vert_colors(vert_filter=self.vert_indexes)
         self.editor_cls.instance.collect_display_infs()
 
@@ -75,5 +76,6 @@ class CommandEditWeights(QtWidgets.QUndoCommand):
 
         weights_view.end_update()
 
-        if weights_view.view_type == "table" and weights_view.horizontalHeader().count() != old_column_count:
+        if isinstance(weights_view, weights_table_view.TableView) and \
+                weights_view.horizontalHeader().count() != old_column_count:
             weights_view.fit_headers_to_contents()
