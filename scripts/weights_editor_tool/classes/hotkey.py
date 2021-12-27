@@ -1,29 +1,32 @@
 from PySide2 import QtCore
 from PySide2 import QtGui
 
+from weights_editor_tool.enums import Hotkeys
+
 
 class Hotkey:
 
     Defaults = {
-        "Toggle table / list view": {"key": QtCore.Qt.Key_QuoteLeft, "ctrl": True},
-        "Show utilities": {"key": QtCore.Qt.Key_1, "ctrl": True},
-        "Show add presets": {"key": QtCore.Qt.Key_2, "ctrl": True},
-        "Show scale presets": {"key": QtCore.Qt.Key_3, "ctrl": True},
-        "Show set presets": {"key": QtCore.Qt.Key_4, "ctrl": True},
-        "Show inf list": {"key": QtCore.Qt.Key_5, "ctrl": True},
-        "Show inf colors": {"key": QtCore.Qt.Key_6, "ctrl": True},
-        "Mirror all": {"key": QtCore.Qt.Key_M, "ctrl": True},
-        "Prune": {"key": QtCore.Qt.Key_P, "ctrl": True},
-        "Run smooth (vert infs)": {"key": QtCore.Qt.Key_S, "ctrl": True, "shift": True},
-        "Run smooth (all infs)": {"key": QtCore.Qt.Key_D, "ctrl": True, "shift": True},
-        "Undo": {"key": QtCore.Qt.Key_Z, "ctrl": True, "shift": True},
-        "Redo": {"key": QtCore.Qt.Key_X, "ctrl": True, "shift": True},
-        "Grow selection": {"key": QtCore.Qt.Key_Greater},
-        "Shrink selection": {"key": QtCore.Qt.Key_Less},
-        "Select edge loop": {"key": QtCore.Qt.Key_E, "ctrl": True},
-        "Select ring loop": {"key": QtCore.Qt.Key_R, "ctrl": True},
-        "Select perimeter": {"key": QtCore.Qt.Key_T, "ctrl": True},
-        "Select shell": {"key": QtCore.Qt.Key_A, "ctrl": True, "shift": True}
+        Hotkeys.ToggleTableListViews: {"key": QtCore.Qt.Key_QuoteLeft, "ctrl": True},
+        Hotkeys.ShowUtilities: {"key": QtCore.Qt.Key_1, "ctrl": True},
+        Hotkeys.ShowAddPresets: {"key": QtCore.Qt.Key_2, "ctrl": True},
+        Hotkeys.ShowScalePresets: {"key": QtCore.Qt.Key_3, "ctrl": True},
+        Hotkeys.ShowSetPresets: {"key": QtCore.Qt.Key_4, "ctrl": True},
+        Hotkeys.ShowInfList: {"key": QtCore.Qt.Key_5, "ctrl": True},
+        Hotkeys.ShowInfColors: {"key": QtCore.Qt.Key_6, "ctrl": True},
+        Hotkeys.MirrorAll: {"key": QtCore.Qt.Key_M, "ctrl": True},
+        Hotkeys.Prune: {"key": QtCore.Qt.Key_P, "ctrl": True},
+        Hotkeys.RunSmooth: {"key": QtCore.Qt.Key_S, "ctrl": True, "shift": True},
+        Hotkeys.RunSmoothAllInfs: {"key": QtCore.Qt.Key_D, "ctrl": True, "shift": True},
+        Hotkeys.Undo: {"key": QtCore.Qt.Key_Z, "ctrl": True, "shift": True},
+        Hotkeys.Redo: {"key": QtCore.Qt.Key_X, "ctrl": True, "shift": True},
+        Hotkeys.GrowSelection: {"key": QtCore.Qt.Key_Greater},
+        Hotkeys.ShrinkSelection: {"key": QtCore.Qt.Key_Less},
+        Hotkeys.SelectEdgeLoop: {"key": QtCore.Qt.Key_E, "ctrl": True},
+        Hotkeys.SelectRingLoop: {"key": QtCore.Qt.Key_R, "ctrl": True},
+        Hotkeys.SelectPerimeter: {"key": QtCore.Qt.Key_T, "ctrl": True},
+        Hotkeys.SelectShell: {"key": QtCore.Qt.Key_A, "ctrl": True, "shift": True},
+        Hotkeys.ToggleInfLock: {"key": QtCore.Qt.Key_Space}
     }
 
     def __init__(self, caption, key, func, ctrl=False, shift=False, alt=False):

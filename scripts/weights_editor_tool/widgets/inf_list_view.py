@@ -78,9 +78,9 @@ class InfListView(QtWidgets.QListView):
             self.display_current_inf()
     
     def keyPressEvent(self, event):
-        QtWidgets.QListView.keyPressEvent(self, event)
+        key_code = event.key() | event.modifiers()
 
-        if event.key() == QtCore.Qt.Key_Space:
+        if key_code == self.window().toggle_inf_lock_key_code:
             infs = [
                 self.get_internal_name(index.row())
                 for index in self.selectedIndexes()
@@ -88,6 +88,8 @@ class InfListView(QtWidgets.QListView):
 
             if infs:
                 self.toggle_locks_triggered.emit(infs)
+        else:
+            QtWidgets.QListView.keyPressEvent(self, event)
 
     def on_double_clicked(self, *args):
         self.select_current_infs()

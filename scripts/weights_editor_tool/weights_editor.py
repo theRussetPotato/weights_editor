@@ -12,9 +12,6 @@ Limitations:
 Example of usage:
     from weights_editor_tool import weights_editor
     weights_editor.run()
-
-TODO:
-    - Implement private accessors
 """
 
 import os
@@ -35,7 +32,7 @@ from PySide2 import QtWidgets
 from PySide2 import QtNetwork
 
 from weights_editor_tool import constants
-from weights_editor_tool.enums import ColorTheme, WeightOperation, SmoothOperation
+from weights_editor_tool.enums import ColorTheme, WeightOperation, SmoothOperation, Hotkeys
 from weights_editor_tool import weights_editor_utils as utils
 from weights_editor_tool.classes.skinned_obj import SkinnedObj
 from weights_editor_tool.classes import hotkey as hotkey_module
@@ -58,15 +55,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
     shortcuts = []
 
     def __init__(self, parent=None):
+        if parent is None:
+            parent = utils.get_maya_window()
+
         QtWidgets.QMainWindow.__init__(self, parent=parent)
 
         self.del_prev_instance()
         self.__class__.instance = self
 
         self.setWindowIcon(utils.load_pixmap("interface/icon.png"))
-
-        self.maya_main_window = utils.get_maya_window()
-        self.setParent(self.maya_main_window)
         self.setWindowFlags(QtCore.Qt.Window)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setObjectName("weightsEditor")
@@ -94,30 +91,33 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.create_gui()
 
         self.hotkeys = [
-            hotkey_module.Hotkey.create_from_default("Toggle table / list view", partial(self.toggle_check_button, self.toggle_view_button)),
-            hotkey_module.Hotkey.create_from_default("Show utilities", partial(self.toggle_check_button, self.show_utilities_button)),
-            hotkey_module.Hotkey.create_from_default("Show add presets", partial(self.toggle_check_button, self.show_add_button)),
-            hotkey_module.Hotkey.create_from_default("Show scale presets", partial(self.toggle_check_button, self.show_scale_button)),
-            hotkey_module.Hotkey.create_from_default("Show set presets", partial(self.toggle_check_button, self.show_set_button)),
-            hotkey_module.Hotkey.create_from_default("Show inf list", partial(self.toggle_check_button, self.show_inf_button)),
-            hotkey_module.Hotkey.create_from_default("Show inf colors", partial(self.toggle_check_button, self.hide_colors_button)),
-            hotkey_module.Hotkey.create_from_default("Mirror all", self.mirror_all_skin_on_clicked),
-            hotkey_module.Hotkey.create_from_default("Prune", self.prune_on_clicked),
-            hotkey_module.Hotkey.create_from_default("Run smooth (vert infs)", partial(self.run_smooth, SmoothOperation.Normal)),
-            hotkey_module.Hotkey.create_from_default("Run smooth (all infs)", partial(self.run_smooth, SmoothOperation.AllInfluences)),
-            hotkey_module.Hotkey.create_from_default("Undo", self.undo_on_click),
-            hotkey_module.Hotkey.create_from_default("Redo", self.redo_on_click),
-            hotkey_module.Hotkey.create_from_default("Grow selection", self.grow_selection),
-            hotkey_module.Hotkey.create_from_default("Shrink selection", self.shrink_selection),
-            hotkey_module.Hotkey.create_from_default("Select edge loop", self.select_edge_loop),
-            hotkey_module.Hotkey.create_from_default("Select ring loop", self.select_ring_loop),
-            hotkey_module.Hotkey.create_from_default("Select perimeter", self.select_perimeter),
-            hotkey_module.Hotkey.create_from_default("Select shell", self.select_shell)
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ToggleTableListViews, partial(self.toggle_check_button, self.toggle_view_button)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ShowUtilities, partial(self.toggle_check_button, self.show_utilities_button)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ShowAddPresets, partial(self.toggle_check_button, self.show_add_button)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ShowScalePresets, partial(self.toggle_check_button, self.show_scale_button)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ShowSetPresets, partial(self.toggle_check_button, self.show_set_button)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ShowInfList, partial(self.toggle_check_button, self.show_inf_button)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ShowInfColors, partial(self.toggle_check_button, self.hide_colors_button)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.MirrorAll, self.mirror_all_skin_on_clicked),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.Prune, self.prune_on_clicked),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.RunSmooth, partial(self.run_smooth, SmoothOperation.Normal)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.RunSmoothAllInfs, partial(self.run_smooth, SmoothOperation.AllInfluences)),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.Undo, self.undo_on_click),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.Redo, self.redo_on_click),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.GrowSelection, self.grow_selection),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ShrinkSelection, self.shrink_selection),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.SelectEdgeLoop, self.select_edge_loop),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.SelectRingLoop, self.select_ring_loop),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.SelectPerimeter, self.select_perimeter),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.SelectShell, self.select_shell),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ToggleInfLock, None)
         ]
 
+        self.toggle_inf_lock_key_code = None
+
         self.restore_state()
-        self.set_undo_buttons_enabled_state()
         self.register_shortcuts()
+        self.set_undo_buttons_enabled_state()
 
         if self.allow_to_fetch_update and self.update_on_open_action.isChecked():
             try:
@@ -576,10 +576,16 @@ class WeightsEditor(QtWidgets.QMainWindow):
             tool_tip="Set full weights to the closest joints for easier blocking.",
             click_event=self.flood_to_closest_on_clicked)
 
+        self.toggle_hotkeys_button = self.create_button(
+            "Hotkeys enabled", "interface/hotkeys.png")
+        self.toggle_hotkeys_button.setCheckable(True)
+        self.toggle_hotkeys_button.toggled.connect(self.hotkeys_on_toggled)
+
         self.settings_layout = utils.wrap_layout(
             [self.show_all_button,
              self.hide_colors_button,
-             self.flood_to_closest_button],
+             self.flood_to_closest_button,
+             self.toggle_hotkeys_button],
             QtCore.Qt.Horizontal)
 
         # Undo buttons
@@ -833,9 +839,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.remove_shortcuts()
 
         for hotkey in self.hotkeys:
-            self.__class__.shortcuts.append(
-                utils.create_shortcut(
-                    QtGui.QKeySequence(hotkey.key_code()), hotkey.func))
+            if hotkey.caption == Hotkeys.ToggleInfLock:
+                self.toggle_inf_lock_key_code = hotkey.key_code()
+            else:
+                self.__class__.shortcuts.append(
+                    utils.create_shortcut(
+                        QtGui.QKeySequence(hotkey.key_code()), hotkey.func))
 
         self.update_tooltips()
 
@@ -885,6 +894,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "auto_select_button.isChecked": self.auto_select_vertex_action.isChecked(),
             "auto_select_infs_button.isChecked": self.auto_select_infs_action.isChecked(),
             "hide_colors_button.isChecked": self.hide_colors_button.isChecked(),
+            "toggle_hotkeys_button.isChecked": self.toggle_hotkeys_button.isChecked(),
             "toggle_view_button.isChecked": self.toggle_view_button.isChecked(),
             "show_utilities_button.isChecked": self.show_utilities_button.isChecked(),
             "show_add_button.isChecked": self.show_add_button.isChecked(),
@@ -971,6 +981,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "auto_select_button.isChecked": self.auto_select_vertex_action,
             "auto_select_infs_button.isChecked": self.auto_select_infs_action,
             "hide_colors_button.isChecked": self.hide_colors_button,
+            "toggle_hotkeys_button.isChecked": self.toggle_hotkeys_button,
             "toggle_view_button.isChecked": self.toggle_view_button,
             "show_utilities_button.isChecked": self.show_utilities_button,
             "show_add_button.isChecked": self.show_add_button,
@@ -1575,9 +1586,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
                     "Can only display {} rows! Go to settings to increase the limit.".format(max_count))
             self.limit_warning_label.setVisible(over_limit)
 
-    def weights_view_on_key_pressed(self, key_event):
-        if key_event.key() == QtCore.Qt.Key_Space:
+    def weights_view_on_key_pressed(self, event):
+        key_code = event.key() | event.modifiers()
+        if key_code == self.toggle_inf_lock_key_code:
             self.toggle_selected_inf_locks()
+        else:
+            QtWidgets.QTableView.keyPressEvent(self.sender(), event)
     
     def refresh_on_clicked(self):
         self.update_obj(self.obj.obj)
@@ -1783,6 +1797,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
             vert_indexes,
             table_selection,
             skip_first_redo=True)
+
+    def hotkeys_on_toggled(self, checked):
+        self.remove_shortcuts()
+
+        if checked:
+            self.toggle_hotkeys_button.setText("Hotkeys disabled")
+        else:
+            self.toggle_hotkeys_button.setText("Hotkeys enabled")
+            self.register_shortcuts()
 
     def switch_color_on_clicked(self, index):
         self.max_color_action.setChecked(index == ColorTheme.Max)

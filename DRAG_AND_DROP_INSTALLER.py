@@ -6,6 +6,7 @@ import sys
 import os
 import glob
 import shutil
+import stat
 import traceback
 import time
 import maya.cmds as cmds
@@ -92,7 +93,12 @@ def onMayaDroppedPythonFile(*args):
             
             if dialog == "Cancel":
                 return
-            
+
+            # May need to tweak permissions before deleting.
+            for root, dirs, files in os.walk(tool_path, topdown=False):
+                for name in files + dirs:
+                    os.chmod(os.path.join(root, name), stat.S_IWUSR)
+
             shutil.rmtree(tool_path)
         
         # Windows may throw an 'access denied' exception doing a copytree right after a rmtree.

@@ -133,10 +133,7 @@ class AbstractWeightsView(QtWidgets.QTableView):
         QtWidgets.QTableView.paintEvent(self, paint_event)
 
     def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Space:
-            self.key_pressed.emit(event)
-        else:
-            QtWidgets.QWidget.keyPressEvent(self, event)
+        self.key_pressed.emit(event)
     
     def mousePressEvent(self, event):
         QtWidgets.QTableView.mousePressEvent(self, event)
