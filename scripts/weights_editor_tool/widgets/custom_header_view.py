@@ -39,7 +39,7 @@ class VerticalHeaderView(CustomHeaderView):
 
     def __init__(self, orientation, parent=None):
         super(VerticalHeaderView, self).__init__(orientation, parent)
-        self.size = QtCore.QSize(0, 0)
+        self._size = QtCore.QSize(0, 0)
 
     def sizeHint(self):
-        return self.size
+        return self._size

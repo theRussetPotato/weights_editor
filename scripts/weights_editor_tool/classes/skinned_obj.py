@@ -10,13 +10,13 @@ from weights_editor_tool.classes.skin_cluster import SkinCluster
 class SkinnedObj:
 
     def __init__(self, obj):
-        self.obj = obj
+        self.name = obj
         self.skin_cluster = None
         self.vert_count = None
 
         if self.is_valid():
-            self.skin_cluster = SkinCluster.create(self.obj)
-            self.vert_count = utils.get_vert_count(self.obj)
+            self.skin_cluster = SkinCluster.create(self.name)
+            self.vert_count = utils.get_vert_count(self.name)
 
     @classmethod
     def create(cls, obj):
@@ -27,24 +27,24 @@ class SkinnedObj:
         return cls(None)
 
     def is_valid(self):
-        return self.obj is not None and cmds.objExists(self.obj)
+        return self.name is not None and cmds.objExists(self.name)
 
     def has_valid_skin(self):
         return self.skin_cluster.is_valid() and self.skin_cluster.has_data()
 
     def short_name(self):
-        return self.obj.split("|")[-1]
+        return self.name.split("|")[-1]
 
     def update_skin_data(self):
         self.skin_cluster = None
         if self.is_valid():
-            self.skin_cluster = SkinCluster.create(self.obj)
+            self.skin_cluster = SkinCluster.create(self.name)
 
     def is_skin_corrupt(self):
         """
         Checks if topology changes were done after the skinCluster was applied.
         """
-        vert_count = utils.get_vert_count(self.obj)
+        vert_count = utils.get_vert_count(self.name)
         weights_count = len(cmds.getAttr("{0}.weightList[*]".format(self.skin_cluster.name)))
         return vert_count != weights_count
 
@@ -63,10 +63,10 @@ class SkinnedObj:
 
             is_effected = infs_set.intersection(vert_infs)
             if is_effected:
-                if utils.is_curve(self.obj):
-                    effected_verts.add("{0}.cv[{1}]".format(self.obj, vert_index))
+                if utils.is_curve(self.name):
+                    effected_verts.add("{0}.cv[{1}]".format(self.name, vert_index))
                 else:
-                    effected_verts.add("{0}.vtx[{1}]".format(self.obj, vert_index))
+                    effected_verts.add("{0}.vtx[{1}]".format(self.name, vert_index))
 
         cmds.select(list(effected_verts))
 
@@ -81,7 +81,7 @@ class SkinnedObj:
             for key, inf in influences.items()
         }
 
-        verts = cmds.ls("{}.vtx[*]".format(self.obj), flatten=True)
+        verts = cmds.ls("{}.vtx[*]".format(self.name), flatten=True)
 
         vert_inf_mappings = {}
 
@@ -121,7 +121,7 @@ class SkinnedObj:
         Returns:
             True on success.
         """
-        flatten_list = utils.get_vert_indexes(self.obj)
+        flatten_list = utils.get_vert_indexes(self.name)
         if not flatten_list:
             OpenMaya.MGlobal.displayWarning("No vertexes are selected.")
             return False
@@ -131,10 +131,10 @@ class SkinnedObj:
         return True
 
     def mirror_skin_weights(self, mirror_mode, mirror_inverse, surface_association, inf_association=None, vert_filter=[]):
-        objs = self.obj
+        objs = self.name
         if vert_filter:
             objs = [
-                "{0}.vtx[{1}]".format(self.obj, index)
+                "{0}.vtx[{1}]".format(self.name, index)
                 for index in vert_filter
             ]
 
@@ -201,7 +201,7 @@ class SkinnedObj:
             vert_colors.append(rgb)
             vert_indexes.append(vert_index)
 
-        utils.apply_vert_colors(self.obj, vert_colors, vert_indexes)
+        utils.apply_vert_colors(self.name, vert_colors, vert_indexes)
 
     def display_multi_color_influence(self, inf_colors=None, vert_filter=[]):
         """
@@ -235,7 +235,7 @@ class SkinnedObj:
             vert_colors.append(final_color)
             vert_indexes.append(vert_index)
 
-        utils.apply_vert_colors(self.obj, vert_colors, vert_indexes)
+        utils.apply_vert_colors(self.name, vert_colors, vert_indexes)
 
         return inf_colors
 
@@ -270,7 +270,7 @@ class SkinnedObj:
             return old_weights
 
         # Add together weight of each influence from neighbours
-        neighbours = utils.get_vert_neighbours(self.obj, vert_index)
+        neighbours = utils.get_vert_neighbours(self.name, vert_index)
 
         for index in neighbours:
             for inf, value in self.skin_cluster.skin_data[index]["weights"].items():
@@ -323,12 +323,12 @@ class SkinnedObj:
         self.set_skin_weights(vert_indexes, normalize=normalize_weights)
 
     def set_skin_weights(self, vert_indexes, **kwargs):
-        self.skin_cluster.set_skin_weights(self.obj, vert_indexes, **kwargs)
+        self.skin_cluster.set_skin_weights(self.name, vert_indexes, **kwargs)
 
     def hide_vert_colors(self):
         if self.is_valid():
-            utils.toggle_display_colors(self.obj, False)
-            utils.delete_temp_inputs(self.obj)
+            utils.toggle_display_colors(self.name, False)
+            utils.delete_temp_inputs(self.name)
 
     def switch_to_color_set(self):
         """
@@ -340,15 +340,15 @@ class SkinnedObj:
         """
         color_set_name = "weightsEditorColorSet"
 
-        obj_shapes = cmds.listRelatives(self.obj, f=True, shapes=True) or []
+        obj_shapes = cmds.listRelatives(self.name, f=True, shapes=True) or []
         old_color_sets = set(cmds.ls(cmds.listHistory(obj_shapes), type="createColorSet"))
 
-        obj_color_sets = cmds.polyColorSet(self.obj, q=True, allColorSets=True) or []
+        obj_color_sets = cmds.polyColorSet(self.name, q=True, allColorSets=True) or []
 
         if color_set_name not in obj_color_sets:
-            cmds.polyColorSet(self.obj, create=True, clamped=False, representation="RGB", colorSet=color_set_name)
+            cmds.polyColorSet(self.name, create=True, clamped=False, representation="RGB", colorSet=color_set_name)
 
-        cmds.polyColorSet(self.obj, currentColorSet=True, colorSet=color_set_name)
+        cmds.polyColorSet(self.name, currentColorSet=True, colorSet=color_set_name)
 
         new_color_sets = set(cmds.ls(cmds.listHistory(obj_shapes), type="createColorSet"))
 

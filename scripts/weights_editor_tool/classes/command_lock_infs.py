@@ -17,37 +17,37 @@ class CommandLockInfs(QtWidgets.QUndoCommand):
     def __init__(self, editor_cls, description, infs, enabled, parent=None):
         super(CommandLockInfs, self).__init__(description, parent=parent)
 
-        self.editor_cls = editor_cls
+        self._editor_cls = editor_cls
 
         # {inf_name, default_lock_state}
-        self.infs = {
+        self._infs = {
             inf: cmds.getAttr("{0}.lockInfluenceWeights".format(inf))
             for inf in infs}
 
-        self.enabled = enabled
+        self._enabled = enabled
 
     def lock_infs(self, use_redo_value):
-        weights_view = self.editor_cls.instance.get_active_weights_view()
+        weights_view = self._editor_cls.instance.get_active_weights_view()
 
         weights_view.begin_update()
-        self.editor_cls.instance.inf_list.begin_update()
+        self._editor_cls.instance.inf_list.begin_update()
 
-        for inf, enabled in self.infs.items():
-            if not cmds.objExists(inf) or inf not in self.editor_cls.instance.infs:
+        for inf, enabled in self._infs.items():
+            if not cmds.objExists(inf) or inf not in self._editor_cls.instance.infs:
                 continue
 
             if use_redo_value:
-                lock = self.enabled
+                lock = self._enabled
             else:
                 lock = enabled
 
             cmds.setAttr("{0}.lockInfluenceWeights".format(inf), lock)
 
-            inf_index = self.editor_cls.instance.infs.index(inf)
+            inf_index = self._editor_cls.instance.infs.index(inf)
 
-            self.editor_cls.instance.locks[inf_index] = lock
+            self._editor_cls.instance.locks[inf_index] = lock
 
-        self.editor_cls.instance.inf_list.end_update()
+        self._editor_cls.instance.inf_list.end_update()
         weights_view.end_update()
 
     def redo(self):
