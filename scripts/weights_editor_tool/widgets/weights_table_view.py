@@ -56,7 +56,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
                 "Set skin weights",
                 self._editor_inst.obj.name,
                 self._old_skin_data,
-                self._editor_inst.obj.skin_cluster.skin_data.copy(),
+                self._editor_inst.obj.skin_data.copy(),
                 vert_indexes,
                 self.save_table_selection())
         
@@ -124,7 +124,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
         else:
             self._editor_inst.vert_indexes = sorted(
                 self._editor_inst.vert_indexes,
-                key=lambda x: self._editor_inst.obj.skin_cluster.skin_data[x]["weights"].get(inf) or 0.0,
+                key=lambda x: self._editor_inst.obj.skin_data[x]["weights"].get(inf) or 0.0,
                 reverse=order)
 
         self.end_update()
@@ -315,7 +315,7 @@ class TableModel(abstract_weights_view.AbstractModel):
         # Distribute the weights.
         inf = self.get_inf(index.column())
         vert_index = self.get_vert_index(index.row())
-        self._editor_inst.obj.skin_cluster.skin_data.update_weight_value(
+        self._editor_inst.obj.skin_data.update_weight_value(
             vert_index, inf, value)
         
         return True
@@ -368,7 +368,7 @@ class TableModel(abstract_weights_view.AbstractModel):
     def _get_value_by_index(self, index):
         inf = self.get_inf(index.column())
         vert_index = self.get_vert_index(index.row())
-        return self._editor_inst.obj.skin_cluster.skin_data[vert_index]["weights"].get(inf) or 0
+        return self._editor_inst.obj.skin_data[vert_index]["weights"].get(inf) or 0
 
     def get_vert_index(self, row):
         return self._editor_inst.vert_indexes[row]

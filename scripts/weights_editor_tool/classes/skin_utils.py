@@ -1,7 +1,13 @@
+import sys
 import os
 import time
 import json
 import glob
+
+if sys.version_info < (3, 0):
+    import cPickle
+else:
+    import _pickle as cPickle
 
 from maya import cmds
 from maya import OpenMaya
@@ -9,16 +15,20 @@ from maya.api import OpenMaya as om2
 
 #import maya_progress_bar
 from weights_editor_tool import weights_editor_utils as utils
+from weights_editor_tool.classes.skin_cluster import SkinCluster
 
 
 VERSION = 1.0
 last_browsing_path = None
 
 
-def launch_file_picker(file_mode, caption, ext="skin"):
+def launch_file_picker(file_mode, caption, file_name="", ext="skin"):
     global last_browsing_path
     if last_browsing_path is None:
         last_browsing_path = cmds.workspace(q=True, fullName=True)
+
+    if file_name:
+        last_browsing_path = os.path.join(last_browsing_path, file_name + ".skin")
 
     picked_path = cmds.fileDialog2(
         caption=caption,
@@ -123,39 +133,37 @@ def export_skin(obj, file_path):
     
     start_time = time.time()
 
-    vert_data = {}
-    skin_weights = utils.get_skin_data(skin_cluster)
-    
-    for vert_index, data in skin_weights.items():
-        data["world_pos"] = cmds.xform("{}.vtx[{}]".format(obj, vert_index), q=True, ws=True, t=True)
-        vert_data[vert_index] = data
+    skin_cluster = SkinCluster.create(obj)
+
+    for vert_index in skin_cluster.skin_data:
+        world_pos = cmds.xform("{}.vtx[{}]".format(obj, vert_index), q=True, ws=True, t=True)
+        skin_cluster.skin_data[vert_index]["world_pos"] = world_pos
 
     influence_data = {}
-    influence_ids = utils.get_influence_ids(skin_cluster)
+    influence_ids = skin_cluster.get_influence_ids()
 
     for inf_id, inf in influence_ids.items():
         influence_data[inf_id] = {
             "name": inf,
             "world_matrix": cmds.xform(inf, q=True, ws=True, m=True)
         }
-
     skin_data = {
         "version": VERSION,
         "object": obj,
-        "verts": vert_data,
+        "verts": skin_cluster.skin_data.data,
         "influences": influence_data,
         "skin_cluster": {
-            "name": skin_cluster,
+            "name": skin_cluster.name,
             "vert_count": cmds.polyEvaluate(obj, vertex=True),
             "influence_count": len(influence_ids),
-            "max_influences": cmds.getAttr("{}.maxInfluences".format(skin_cluster)),
-            "skinning_method": cmds.getAttr("{}.skinningMethod".format(skin_cluster)),
-            "dqs_support_non_rigid": cmds.getAttr("{}.dqsSupportNonRigid".format(skin_cluster))
+            "max_influences": cmds.getAttr("{}.maxInfluences".format(skin_cluster.name)),
+            "skinning_method": cmds.getAttr("{}.skinningMethod".format(skin_cluster.name)),
+            "dqs_support_non_rigid": cmds.getAttr("{}.dqsSupportNonRigid".format(skin_cluster.name))
         }
     }
 
-    with open(file_path, "w") as f:
-        f.write(json.dumps(skin_data))
+    with open(file_path, "wb") as f:
+        f.write(cPickle.dumps(skin_data))
 
     end_time = time.time()
     total_time = end_time - start_time
@@ -227,8 +235,8 @@ def map_to_closest_vertexes(obj, verts_data, vert_filter=[]):
 
 
 def read_skin_file(skin_path):
-    with open(skin_path, "r") as f:
-        skin_data = json.loads(f.read())
+    with open(skin_path, "rb") as f:
+        skin_data = cPickle.loads(f.read())
 
     skin_data["verts"] = {
         int(key): value
@@ -256,7 +264,7 @@ def import_skin(obj, file_path, world_space=False, vert_filter=[]):
     infs = {}
 
     for index in skin_data["verts"]:
-        for inf in skin_data["verts"][index]["weights"]:
+        for inf in list(skin_data["verts"][index]["weights"]):
             if inf not in infs:
                 if cmds.objExists(inf):
                     infs[inf] = inf
@@ -324,7 +332,9 @@ def import_skin(obj, file_path, world_space=False, vert_filter=[]):
         for vert_index in weights_data
     ]
 
-    utils.set_skin_weights(obj, weights_data, vert_indexes)
+    skin_cluster = SkinCluster.create(obj)
+    skin_cluster.skin_data.data = skin_data["verts"]
+    skin_cluster.apply_current_skin_weights(vert_indexes)
 
     # Display message
     total_time = time.time() - start_time
@@ -363,7 +373,10 @@ def run_export_tool():
     if not sel:
         raise RuntimeError("Nothing is selected")
 
-    picked_path = launch_file_picker(0, "Export skin")
+    if not utils.get_skin_cluster(sel[0]):
+        raise RuntimeError("Unable to find a skinCluster from the selection")
+
+    picked_path = launch_file_picker(0, "Export skin", file_name=sel[0].split("|")[-1])
     if not picked_path:
         return
 
@@ -392,7 +405,7 @@ def run_import_tool(use_world_positions):
     import_skin(
         sel[0],
         picked_path,
-        use_world_positions=use_world_positions,
+        world_space=use_world_positions,
         vert_filter=vert_filter)
 
 

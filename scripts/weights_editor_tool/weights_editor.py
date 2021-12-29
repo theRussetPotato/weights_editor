@@ -12,6 +12,11 @@ Limitations:
 Example of usage:
     from weights_editor_tool import weights_editor
     weights_editor.run()
+
+TODO:
+    - Export skin
+    - Import skin
+    - Add unit tests
 """
 
 import os
@@ -1110,8 +1115,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
         Gets and returns a list of all influences from the active skinCluster.
         Also collects unique colors of each influence for the Softimage theme.
         """
-        self.inf_colors = self.obj.skin_cluster.collect_influence_colors()
-        return sorted(self.obj.skin_cluster.get_influences())
+        self.inf_colors = self.obj.collect_influence_colors()
+        return sorted(self.obj.get_influences())
     
     def _get_selected_infs(self):
         """
@@ -1121,7 +1126,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         if self.obj.has_valid_skin():
             for vert_index in self.vert_indexes:
-                vert_infs = self.obj.skin_cluster.skin_data.get_vertex_infs(vert_index)
+                vert_infs = self.obj.skin_data.get_vertex_infs(vert_index)
                 infs = infs.union(vert_infs)
         
         return sorted(list(infs))
@@ -1192,7 +1197,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             return
 
         sel_vert_indexes = set()
-        old_skin_data = self.obj.skin_cluster.skin_data.copy()
+        old_skin_data = self.obj.skin_data.copy()
 
         for vert_index, inf in verts_and_infs:
             old_weight_data = old_skin_data[vert_index]["weights"]
@@ -1210,7 +1215,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             elif mode == WeightOperation.Percentage:
                 new_value = utils.clamp(0.0, 1.0, old_value * input_value)
 
-            self.obj.skin_cluster.skin_data.update_weight_value(vert_index, inf, new_value)
+            self.obj.skin_data.update_weight_value(vert_index, inf, new_value)
             
             sel_vert_indexes.add(vert_index)
         
@@ -1233,7 +1238,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             description,
             self.obj.name,
             old_skin_data,
-            self.obj.skin_cluster.skin_data.copy(),
+            self.obj.skin_data.copy(),
             list(sel_vert_indexes),
             weights_view.save_table_selection())
     
@@ -1273,7 +1278,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             OpenMaya.MGlobal.displayWarning("No vertexes are selected.")
             return
 
-        old_skin_data = self.obj.skin_cluster.skin_data.copy()
+        old_skin_data = self.obj.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
@@ -1297,7 +1302,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         self.update_vert_colors(vert_filter=selected_vertexes)
 
-        new_skin_data = self.obj.skin_cluster.skin_data.copy()
+        new_skin_data = self.obj.skin_data.copy()
 
         self.add_undo_command(
             undo_caption,
@@ -1360,7 +1365,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if not self.obj.is_valid():
             return
 
-        old_skin_data = self.obj.skin_cluster.skin_data.copy()
+        old_skin_data = self.obj.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
@@ -1405,7 +1410,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         vert_filter = vert_indexes if selection_only else []
         self.update_vert_colors(vert_filter=vert_filter)
 
-        new_skin_data = self.obj.skin_cluster.skin_data.copy()
+        new_skin_data = self.obj.skin_data.copy()
 
         self.add_undo_command(
             "Mirror weights",
@@ -1595,7 +1600,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if not self.obj.is_valid():
             return
         
-        old_skin_data = self.obj.skin_cluster.skin_data.copy()
+        old_skin_data = self.obj.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
@@ -1610,7 +1615,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         
         self.update_vert_colors(vert_filter=sel_vert_indexes)
         
-        new_skin_data = self.obj.skin_cluster.skin_data.copy()
+        new_skin_data = self.obj.skin_data.copy()
         
         self.add_undo_command(
             "Prune weights",
@@ -1639,7 +1644,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             return
 
         vert_index = vert_indexes[0]
-        self._copied_vertex = self.obj.skin_cluster.skin_data.copy_vertex(vert_index)
+        self._copied_vertex = self.obj.skin_data.copy_vertex(vert_index)
         OpenMaya.MGlobal.displayInfo("Copied vertex {}".format(vert_index))
 
     def _paste_vertex_on_clicked(self):
@@ -1658,12 +1663,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
-        old_skin_data = self.obj.skin_cluster.skin_data.copy()
+        old_skin_data = self.obj.skin_data.copy()
 
         for vert_index in vert_indexes:
-            self.obj.skin_cluster.skin_data[vert_index] = copy.deepcopy(self._copied_vertex)
+            self.obj.skin_data[vert_index] = copy.deepcopy(self._copied_vertex)
 
-        new_skin_data = self.obj.skin_cluster.skin_data.copy()
+        new_skin_data = self.obj.skin_data.copy()
 
         self.add_undo_command(
             "Paste vertex",
@@ -1705,7 +1710,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if not self.obj.is_valid() or not self.obj.has_valid_skin():
             return
 
-        old_skin_data = self.obj.skin_cluster.skin_data.copy()
+        old_skin_data = self.obj.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
@@ -1718,7 +1723,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._recollect_table_data(update_verts=False)
         self.update_vert_colors()
 
-        new_skin_data = self.obj.skin_cluster.skin_data.copy()
+        new_skin_data = self.obj.skin_data.copy()
 
         self.add_undo_command(
             "Flood weights to closest",
@@ -1877,7 +1882,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             OpenMaya.MGlobal.displayError("Nothing is selected in the influence list.")
             return
         
-        old_skin_data = self.obj.skin_cluster.skin_data.copy()
+        old_skin_data = self.obj.skin_data.copy()
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
@@ -1885,11 +1890,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
         # Add infs by setting a very low value so it doesn't effect other weights too much.
         for inf in sel_infs:
             for vert_index in sel_vert_indexes:
-                weight_data = self.obj.skin_cluster.skin_data[vert_index]["weights"]
+                weight_data = self.obj.skin_data[vert_index]["weights"]
                 if weight_data.get(inf) is None:
-                    self.obj.skin_cluster.skin_data.update_weight_value(vert_index, inf, 0.001)
+                    self.obj.skin_data.update_weight_value(vert_index, inf, 0.001)
 
-        new_skin_data = self.obj.skin_cluster.skin_data.copy()
+        new_skin_data = self.obj.skin_data.copy()
 
         self.add_undo_command(
             "Add influence to verts",

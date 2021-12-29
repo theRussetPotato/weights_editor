@@ -23,6 +23,10 @@ class SkinData:
         self.data[vert_index] = value
 
     @classmethod
+    def create_empty(cls):
+        return cls(None)
+
+    @classmethod
     def get(cls, skin_cluster):
         return cls(cls.get_data(skin_cluster))
 
@@ -37,12 +41,12 @@ class SkinData:
             {vert_index: {"weights": {inf_name: weight_value...}, "dq": float}}
         """
         # Create skin cluster function set
-        skin_cluster_node = utils.to_mobject(skin_cluster.name)
-        skin_cluster_fn = OpenMayaAnim.MFnSkinCluster(skin_cluster_node)
+        skin_cluster_mobj = utils.to_mobject(skin_cluster)
+        mfn_skin_cluster = OpenMayaAnim.MFnSkinCluster(skin_cluster_mobj)
 
         # Get MPlugs for weights
-        weight_list_plug = skin_cluster_fn.findPlug("weightList")
-        weights_plug = skin_cluster_fn.findPlug("weights")
+        weight_list_plug = mfn_skin_cluster.findPlug("weightList")
+        weights_plug = mfn_skin_cluster.findPlug("weights")
         weight_list_obj = weight_list_plug.attribute()
         weight_obj = weights_plug.attribute()
         weight_inf_ids = OpenMaya.MIntArray()
@@ -50,7 +54,7 @@ class SkinData:
         skin_weights = {}
 
         # Get current ids
-        inf_ids = skin_cluster.get_influence_ids()
+        inf_ids = utils.get_influence_ids(skin_cluster)
         vert_count = weight_list_plug.numElements()
 
         for vert_index in range(vert_count):
@@ -75,7 +79,7 @@ class SkinData:
 
             data["weights"] = vert_weights
 
-            dq_value = cmds.getAttr("{0}.bw[{1}]".format(skin_cluster.name, vert_index))
+            dq_value = cmds.getAttr("{0}.bw[{1}]".format(skin_cluster, vert_index))
             data["dq"] = dq_value
 
             skin_weights[vert_index] = data

@@ -44,8 +44,8 @@ class CommandEditWeights(QtWidgets.QUndoCommand):
         old_column_count = weights_view.horizontalHeader().count()
         weights_view.begin_update()
 
-        self._editor_cls.instance.obj.skin_cluster.skin_data = self._new_skin_data
-        self._editor_cls.instance.obj.set_skin_weights(self._vert_indexes, normalize=True)
+        self._editor_cls.instance.obj.skin_data = self._new_skin_data
+        self._editor_cls.instance.obj.apply_current_skin_weights(self._vert_indexes, normalize=True)
         self._editor_cls.instance.update_vert_colors(vert_filter=self._vert_indexes)
         self._editor_cls.instance.collect_display_infs()
 
@@ -66,8 +66,8 @@ class CommandEditWeights(QtWidgets.QUndoCommand):
         old_column_count = weights_view.horizontalHeader().count()
         weights_view.begin_update()
 
-        self._editor_cls.instance.obj.skin_cluster.skin_data = self._old_skin_data
-        self._editor_cls.instance.obj.set_skin_weights(self._vert_indexes, normalize=True)
+        self._editor_cls.instance.obj.skin_data = self._old_skin_data
+        self._editor_cls.instance.obj.apply_current_skin_weights(self._vert_indexes, normalize=True)
         self._editor_cls.instance.update_vert_colors(vert_filter=self._vert_indexes)
         self._editor_cls.instance.collect_display_infs()
 

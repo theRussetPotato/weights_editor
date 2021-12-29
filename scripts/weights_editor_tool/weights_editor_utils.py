@@ -6,6 +6,7 @@ from maya import cmds
 from maya import mel
 from maya import OpenMaya
 from maya import OpenMayaUI
+from maya import OpenMayaAnim
 
 from PySide2 import QtCore
 from PySide2 import QtGui
@@ -253,6 +254,36 @@ def get_skin_cluster(obj):
     skin_clusters = cmds.ls(cmds.listHistory(obj) or [], type="skinCluster")
     if skin_clusters:
         return skin_clusters[0]
+
+
+def get_influences(skin_cluster):
+    return cmds.skinCluster(skin_cluster, q=True, inf=True) or []
+
+
+def get_influence_ids(skin_cluster):
+    """
+    Collects all influences and its ids from a skinCluster.
+
+    Returns:
+        A dictionary: {id(int):inf_name(string)}
+    """
+    has_infs = get_influences(skin_cluster)
+    if not has_infs:
+        return {}
+
+    skin_cluster_mobj = to_mobject(skin_cluster)
+    mfn_skin_cluster = OpenMayaAnim.MFnSkinCluster(skin_cluster_mobj)
+
+    inf_mdag_paths = OpenMaya.MDagPathArray()
+    mfn_skin_cluster.influenceObjects(inf_mdag_paths)
+
+    inf_ids = {}
+
+    for i in range(inf_mdag_paths.length()):
+        inf_id = int(mfn_skin_cluster.indexForInfluenceObject(inf_mdag_paths[i]))
+        inf_ids[inf_id] = inf_mdag_paths[i].partialPathName()
+
+    return inf_ids
 
 
 def toggle_display_colors(obj, enabled):

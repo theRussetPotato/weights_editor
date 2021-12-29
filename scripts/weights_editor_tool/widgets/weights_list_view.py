@@ -40,7 +40,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
                 "Set skin weights",
                 self._editor_inst.obj.name,
                 self._old_skin_data,
-                self._editor_inst.obj.skin_cluster.skin_data.copy(),
+                self._editor_inst.obj.skin_data.copy(),
                 self._editor_inst.vert_indexes,
                 self.save_table_selection())
         
@@ -250,7 +250,7 @@ class ListModel(abstract_weights_view.AbstractModel):
         inf = self.get_inf(index.row())
 
         for vert_index in self._editor_inst.vert_indexes:
-            self._editor_inst.obj.skin_cluster.skin_data.update_weight_value(
+            self._editor_inst.obj.skin_data.update_weight_value(
                 vert_index, inf, value)
 
         return True
@@ -304,7 +304,7 @@ class ListModel(abstract_weights_view.AbstractModel):
 
         if inf not in self.average_weights:
             values = [
-                self._editor_inst.obj.skin_cluster.skin_data[vert_index]["weights"].get(inf) or 0
+                self._editor_inst.obj.skin_data[vert_index]["weights"].get(inf) or 0
                 for vert_index in self._editor_inst.vert_indexes
             ]
 

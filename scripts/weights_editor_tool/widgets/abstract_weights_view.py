@@ -143,7 +143,7 @@ class AbstractWeightsView(QtWidgets.QTableView):
         # Begins edit on current cell.
         if event.button() == QtCore.Qt.MouseButton.RightButton:
             # Save this prior to any changes.
-            self._old_skin_data = self._editor_inst.obj.skin_cluster.skin_data.copy()
+            self._old_skin_data = self._editor_inst.obj.skin_data.copy()
             self.edit(self.currentIndex())
 
     def _header_on_context_trigger(self, point):

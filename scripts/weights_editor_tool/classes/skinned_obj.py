@@ -1,10 +1,14 @@
+import random
+
 from maya import cmds
 from maya import OpenMaya
+
+from PySide2 import QtGui
 
 from weights_editor_tool import constants
 from weights_editor_tool.enums import ColorTheme
 from weights_editor_tool import weights_editor_utils as utils
-from weights_editor_tool.classes.skin_cluster import SkinCluster
+from weights_editor_tool.classes.skin_data import SkinData
 
 
 class SkinnedObj:
@@ -12,11 +16,12 @@ class SkinnedObj:
     def __init__(self, obj):
         self.name = obj
         self.skin_cluster = None
+        self.skin_data = None
         self.vert_count = None
 
         if self.is_valid():
-            self.skin_cluster = SkinCluster.create(self.name)
             self.vert_count = utils.get_vert_count(self.name)
+            self.update_skin_data()
 
     @classmethod
     def create(cls, obj):
@@ -30,22 +35,27 @@ class SkinnedObj:
         return self.name is not None and cmds.objExists(self.name)
 
     def has_valid_skin(self):
-        return self.skin_cluster.is_valid() and self.skin_cluster.has_data()
+        return self.skin_cluster is not None and self.has_skin_data()
 
     def short_name(self):
         return self.name.split("|")[-1]
 
     def update_skin_data(self):
         self.skin_cluster = None
+        self.skin_data = SkinData.create_empty()
+
         if self.is_valid():
-            self.skin_cluster = SkinCluster.create(self.name)
+            self.skin_cluster = utils.get_skin_cluster(self.name)
+
+            if self.skin_cluster:
+                self.skin_data = SkinData.get(self.skin_cluster)
 
     def is_skin_corrupt(self):
         """
         Checks if topology changes were done after the skinCluster was applied.
         """
         vert_count = utils.get_vert_count(self.name)
-        weights_count = len(cmds.getAttr("{0}.weightList[*]".format(self.skin_cluster.name)))
+        weights_count = len(cmds.getAttr("{0}.weightList[*]".format(self.skin_cluster)))
         return vert_count != weights_count
 
     def select_inf_vertexes(self, infs):
@@ -58,8 +68,8 @@ class SkinnedObj:
         infs_set = set(infs)
         effected_verts = set()
 
-        for vert_index in self.skin_cluster.skin_data:
-            vert_infs = self.skin_cluster.skin_data[vert_index]["weights"].keys()
+        for vert_index in self.skin_data:
+            vert_infs = self.skin_data[vert_index]["weights"].keys()
 
             is_effected = infs_set.intersection(vert_infs)
             if is_effected:
@@ -74,7 +84,7 @@ class SkinnedObj:
         """
         Each vertex will be assigned a full weight to its closest joint.
         """
-        influences = self.skin_cluster.get_influence_ids()
+        influences = self.get_influence_ids()
 
         inf_positions = {
             key: cmds.xform(inf, q=True, ws=True, t=True)
@@ -101,15 +111,15 @@ class SkinnedObj:
 
             vert_inf_mappings[vert_index] = closest_inf_index
 
-        cmds.setAttr("{0}.nw".format(self.skin_cluster.name), 0)
-        cmds.skinPercent(self.skin_cluster.name, verts, prw=100, nrm=0)
+        cmds.setAttr("{0}.nw".format(self.skin_cluster), 0)
+        cmds.skinPercent(self.skin_cluster, verts, prw=100, nrm=0)
 
         for vert_index, inf_index in vert_inf_mappings.items():
-            weight_plug = "{0}.weightList[{1}].weights[{2}]".format(self.skin_cluster.name, vert_index, inf_index)
+            weight_plug = "{0}.weightList[{1}].weights[{2}]".format(self.skin_cluster, vert_index, inf_index)
             cmds.setAttr(weight_plug, 1)
 
-        cmds.setAttr("{0}.nw".format(self.skin_cluster.name), 1)
-        cmds.skinCluster(self.skin_cluster.name, e=True, forceNormalizeWeights=True)
+        cmds.setAttr("{0}.nw".format(self.skin_cluster), 1)
+        cmds.skinCluster(self.skin_cluster, e=True, forceNormalizeWeights=True)
 
     def prune_weights(self, value):
         """
@@ -126,7 +136,7 @@ class SkinnedObj:
             OpenMaya.MGlobal.displayWarning("No vertexes are selected.")
             return False
 
-        cmds.skinPercent(self.skin_cluster.name, flatten_list, prw=value, nrm=True)
+        cmds.skinPercent(self.skin_cluster, flatten_list, prw=value, nrm=True)
 
         return True
 
@@ -181,11 +191,11 @@ class SkinnedObj:
         vert_colors = []
         vert_indexes = []
 
-        for vert_index in self.skin_cluster.skin_data:
+        for vert_index in self.skin_data:
             if vert_filter and vert_index not in vert_filter:
                 continue
 
-            weights_data = self.skin_cluster.skin_data[vert_index]["weights"]
+            weights_data = self.skin_data[vert_index]["weights"]
 
             if influence in weights_data:
                 weight_value = weights_data[influence]
@@ -215,18 +225,18 @@ class SkinnedObj:
             A dictionary of {inf_name:[r, g, b]...}
         """
         if inf_colors is None:
-            inf_colors = self.skin_cluster.collect_influence_colors()
+            inf_colors = self.collect_influence_colors()
 
         vert_colors = []
         vert_indexes = []
 
-        for vert_index in self.skin_cluster.skin_data:
+        for vert_index in self.skin_data:
             if vert_filter and vert_index not in vert_filter:
                 continue
 
             final_color = [0, 0, 0]
 
-            for inf, weight in self.skin_cluster.skin_data[vert_index]["weights"].items():
+            for inf, weight in self.skin_data[vert_index]["weights"].items():
                 inf_color = inf_colors.get(inf)
                 final_color[0] += inf_color[0] * weight
                 final_color[1] += inf_color[1] * weight
@@ -250,7 +260,7 @@ class SkinnedObj:
         Returns:
             A dictionary of the new weights. {int_name:weight_value...}
         """
-        old_weights = self.skin_cluster.skin_data[vert_index]["weights"]
+        old_weights = self.skin_data[vert_index]["weights"]
         new_weights = {}
 
         # Collect unlocked infs and total value of unlocked weights
@@ -273,7 +283,7 @@ class SkinnedObj:
         neighbours = utils.get_vert_neighbours(self.name, vert_index)
 
         for index in neighbours:
-            for inf, value in self.skin_cluster.skin_data[index]["weights"].items():
+            for inf, value in self.skin_data[index]["weights"].items():
                 # Ignore if locked
                 if inf not in unlocked:
                     continue
@@ -318,12 +328,9 @@ class SkinnedObj:
 
         # Set weights
         for vert_index, weights in weights_to_set.items():
-            self.skin_cluster.skin_data[vert_index]["weights"] = weights
+            self.skin_data[vert_index]["weights"] = weights
 
-        self.set_skin_weights(vert_indexes, normalize=normalize_weights)
-
-    def set_skin_weights(self, vert_indexes, **kwargs):
-        self.skin_cluster.set_skin_weights(self.name, vert_indexes, **kwargs)
+        self.apply_current_skin_weights(vert_indexes, normalize=normalize_weights)
 
     def hide_vert_colors(self):
         if self.is_valid():
@@ -356,3 +363,90 @@ class SkinnedObj:
         if dif_color_sets:
             cmds.addAttr(dif_color_sets[0], ln=constants.COLOR_SET, dt="string")
             cmds.rename(dif_color_sets[0], constants.COLOR_SET)
+
+    def has_skin_data(self):
+        if self.skin_data is not None and self.skin_data.data:
+            return True
+        return False
+
+    def get_influences(self):
+        return utils.get_influences(self.skin_cluster)
+
+    def get_influence_ids(self):
+        return utils.get_influence_ids(self.skin_cluster)
+
+    def collect_influence_colors(self, sat=250, brightness=150):
+        """
+        Generates a unique color for each influence.
+
+        Args:
+            sat(float)
+            brightness(float)
+
+        Returns:
+            A dictionary of {inf_name:[r, g, b]...}
+        """
+        infs = self.get_influences()
+        random.seed(0)
+        random.shuffle(infs)
+
+        inf_colors = {}
+
+        hue_step = 360.0 / (len(infs))
+
+        for i, inf in enumerate(infs):
+            color = QtGui.QColor()
+            color.setHsv(hue_step * i, sat, brightness)
+            color.toRgb()
+
+            inf_colors[inf] = [
+                color.red() / 255.0,
+                color.green() / 255.0,
+                color.blue() / 255.0]
+
+        return inf_colors
+
+    def apply_current_skin_weights(self, vert_indexes, normalize=False):
+        """
+        Sets skin weights with the supplied data.
+
+        Args:
+            vert_indexes(int[]): List of vertex indexes to only operate on.
+            normalize(bool): Forces weights to be normalized.
+        """
+        # Get influence info to map with
+        inf_data = self.get_influence_ids()
+        inf_ids = list(inf_data.keys())
+        inf_names = list(inf_data.values())
+
+        # Remove all existing weights
+        if utils.is_curve(self.name):
+            plug = "{0}.cv".format(self.name)
+        else:
+            plug = "{0}.vtx".format(self.name)
+
+        selected_vertexes = [
+            "{0}[{1}]".format(plug, index)
+            for index in vert_indexes
+        ]
+
+        cmds.setAttr("{0}.nw".format(self.skin_cluster), 0)
+        cmds.skinPercent(self.skin_cluster, selected_vertexes, prw=100, nrm=0)
+
+        # Apply weights per vert
+        for vert_index in vert_indexes:
+            weight_list_attr = "{0}.weightList[{1}]".format(self.skin_cluster, vert_index)
+            for inf_name, weight_value in self.skin_data[vert_index]["weights"].items():
+                index = inf_names.index(inf_name)
+                weight_attr = ".weights[{0}]".format(inf_ids[index])
+                cmds.setAttr("{0}{1}".format(weight_list_attr, weight_attr), weight_value)
+
+            # Apply dual-quarternions
+            dq_value = self.skin_data[vert_index]["dq"]
+            cmds.setAttr("{0}.bw[{1}]".format(self.skin_cluster, vert_index), dq_value)
+
+        # Re-enable weights normalizing
+        cmds.setAttr("{0}.nw".format(self.skin_cluster), 1)
+
+        if normalize:
+            cmds.skinCluster(self.skin_cluster, e=True, forceNormalizeWeights=True)
