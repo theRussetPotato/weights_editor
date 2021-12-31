@@ -79,7 +79,7 @@ class InfListView(QtWidgets.QListView):
     def keyPressEvent(self, event):
         key_code = event.key() | event.modifiers()
 
-        if key_code == self.window().toggle_inf_lock_key_code:
+        if key_code in self.window().toggle_inf_lock_key_codes:
             infs = [
                 self._get_internal_name(index.row())
                 for index in self.selectedIndexes()

@@ -12,11 +12,6 @@ Limitations:
 Example of usage:
     from weights_editor_tool import weights_editor
     weights_editor.run()
-
-TODO:
-    - Export skin
-    - Import skin
-    - Add unit tests
 """
 
 import os
@@ -76,7 +71,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._undo_stack = QtWidgets.QUndoStack(parent=self)
         self._undo_stack.setUndoLimit(30)
         self._copied_vertex = None
-        self._allow_to_fetch_update = True
         self._in_component_mode = utils.is_in_component_mode()
         self._settings_path = os.path.join(os.getenv("HOME"), "maya", "weights_editor.json")
         self._add_preset_values = presets_dialog.PresetsDialog.Defaults["add"]
@@ -92,7 +86,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.color_style = ColorTheme.Max
         self.block_selection_cb = False
         self.ignore_cell_selection_event = False
-        self.toggle_inf_lock_key_code = None
+        self.toggle_inf_lock_key_codes = []
 
         self._create_gui()
 
@@ -116,19 +110,13 @@ class WeightsEditor(QtWidgets.QMainWindow):
             hotkey_module.Hotkey.create_from_default(Hotkeys.SelectRingLoop, self._select_ring_loop),
             hotkey_module.Hotkey.create_from_default(Hotkeys.SelectPerimeter, self._select_perimeter),
             hotkey_module.Hotkey.create_from_default(Hotkeys.SelectShell, self._select_shell),
-            hotkey_module.Hotkey.create_from_default(Hotkeys.ToggleInfLock, None)
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ToggleInfLock, None),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.ToggleInfLock2, None)
         ]
 
         self._restore_state()
         self._register_shortcuts()
         self._set_undo_buttons_enabled_state()
-
-        if self._allow_to_fetch_update and self._update_on_open_action.isChecked():
-            try:
-                self._fetch_latest_tool_version()
-            except Exception as err:
-                print(traceback.format_exc())
-                cmds.warning("Could not get version from GitHub: {e}".format(e=err))
 
     @classmethod
     def run(cls):
@@ -307,11 +295,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._hide_long_names_action.toggled.connect(self._hide_long_names_on_triggered)
         self._options_menu.addAction(self._hide_long_names_action)
 
-        self._update_on_open_action = QtWidgets.QAction("Check for updates on open", self)
-        self._update_on_open_action.setCheckable(True)
-        self._update_on_open_action.setChecked(True)
-        self._options_menu.addAction(self._update_on_open_action)
-
         self._visibility_separator = QtWidgets.QAction("Visibility settings", self)
         self._visibility_separator.setSeparator(True)
         self._options_menu.addAction(self._visibility_separator)
@@ -329,11 +312,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._about_action = QtWidgets.QAction("About this tool", self)
         self._about_action.triggered.connect(self._about_on_triggered)
 
+        self._check_for_updates_action = QtWidgets.QAction("Check for updates", self)
+        self._check_for_updates_action.triggered.connect(self._fetch_latest_tool_version)
+
         self._github_page_action = QtWidgets.QAction("Github page", self)
         self._github_page_action.triggered.connect(self._github_page_on_triggered)
 
         self._about_menu = self._menu_bar.addMenu("&About")
         self._about_menu.addAction(self._about_action)
+        self._about_menu.addAction(self._check_for_updates_action)
         self._about_menu.addAction(self._github_page_action)
 
     #
@@ -592,6 +579,29 @@ class WeightsEditor(QtWidgets.QMainWindow):
              self._toggle_hotkeys_button],
             QtCore.Qt.Horizontal)
 
+        self._export_weights_button = self._create_button(
+            "Export weights", "interface/export_weights.png",
+            tool_tip="Export selected object's skin weights to a file",
+            click_event=self._export_weights_on_clicked)
+
+        self._import_weights_button = self._create_button(
+            "Import weights", "interface/import_weights.png",
+            tool_tip="Import skin weights onto the selected object<br><br>"
+                     "<b>Topologies from the file must match!</b>",
+            click_event=partial(self._import_weights_on_clicked, False))
+
+        self._import_weights_world_button = self._create_button(
+            "Import weights (world pos)", "interface/import_weights.png",
+            tool_tip="Import skin weights onto the selected object using world positions from the file<br><br>"
+                     "<b>This may be long for dense meshes!</b>",
+            click_event=partial(self._import_weights_on_clicked, True))
+
+        self._export_import_layout = utils.wrap_layout(
+            [self._export_weights_button,
+             self._import_weights_button,
+             self._import_weights_world_button],
+            QtCore.Qt.Horizontal)
+
         # Undo buttons
         self._undo_button = self._create_button(
             "Undo", "interface/undo.png",
@@ -642,6 +652,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
              self._weights_list,
              self._weights_table,
              self._settings_layout,
+             self._export_import_layout,
              self._undo_layout],
             QtCore.Qt.Vertical,
             spacing=3)
@@ -669,7 +680,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.inf_list = inf_list_view.InfListView(self, parent=self._inf_widget)
         self.inf_list.middle_clicked.connect(self._inf_list_on_middle_clicked)
         self.inf_list.toggle_locks_triggered.connect(self._inf_list_on_toggle_locks_triggered)
-        self.inf_list.set_locks_triggered.connect(self._toggle_inf_locks)
+        self.inf_list.set_locks_triggered.connect(self.toggle_inf_locks)
         self.inf_list.select_inf_verts_triggered.connect(self._select_by_infs_on_clicked)
         self.inf_list.add_infs_to_verts_triggered.connect(self._add_inf_to_vert_on_clicked)
 
@@ -782,16 +793,20 @@ class WeightsEditor(QtWidgets.QMainWindow):
         button.setChecked(not button.isChecked())
 
     def _fetch_latest_tool_version(self):
-        url = QtCore.QUrl(constants.GITHUB_LATEST_RELEASE)
+        try:
+            url = QtCore.QUrl(constants.GITHUB_LATEST_RELEASE)
 
-        request = QtNetwork.QNetworkRequest()
-        request.setUrl(url)
+            request = QtNetwork.QNetworkRequest()
+            request.setUrl(url)
 
-        manager = QtNetwork.QNetworkAccessManager()
+            manager = QtNetwork.QNetworkAccessManager()
 
-        response = manager.get(request)
-        response.finished.connect(
-            partial(self._request_on_finished, manager, response))  # Pass manager to keep it alive.
+            response = manager.get(request)
+            response.finished.connect(
+                partial(self._request_on_finished, manager, response))  # Pass manager to keep it alive.
+        except Exception as err:
+            print(traceback.format_exc())
+            cmds.warning("Could not get version from GitHub: {e}".format(e=err))
 
     def _request_on_finished(self, manager, response):
         raw_response = response.readAll()
@@ -805,6 +820,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
                 "{ver} is available to <a href='{url}'>download here</a>".format(
                     ver=latest_version, url=data["html_url"]))
             self._update_frame.show()
+        else:
+            QtWidgets.QMessageBox.information(self, "All good!", "Everything is up to date.")
 
     def _update_tooltips(self):
         """
@@ -838,10 +855,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
         Installs temporary hotkeys that overrides Maya's.
         """
         self._remove_shortcuts()
+        self.toggle_inf_lock_key_codes = []
 
         for hotkey in self._hotkeys:
-            if hotkey.caption == Hotkeys.ToggleInfLock:
-                self.toggle_inf_lock_key_code = hotkey.key_code()
+            if hotkey.caption == Hotkeys.ToggleInfLock or hotkey.caption == Hotkeys.ToggleInfLock2:
+                self.toggle_inf_lock_key_codes.append(hotkey.key_code())
             else:
                 self.__class__.shortcuts.append(
                     utils.create_shortcut(
@@ -902,7 +920,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_scale_button.isChecked": self._show_scale_button.isChecked(),
             "show_set_button.isChecked": self._show_set_button.isChecked(),
             "show_inf_button.isChecked": self._show_inf_button.isChecked(),
-            "update_on_open_action.isChecked": self._update_on_open_action.isChecked(),
             "hide_long_names_action.isChecked": self._hide_long_names_action.isChecked(),
             "weights_table.max_display_count": self._weights_table.table_model.max_display_count,
             "add_presets_values": self._add_preset_values,
@@ -989,7 +1006,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_scale_button.isChecked": self._show_scale_button,
             "show_set_button.isChecked": self._show_set_button,
             "show_inf_button.isChecked": self._show_inf_button,
-            "update_on_open_action.isChecked": self._update_on_open_action,
             "hide_long_names_action.isChecked": self._hide_long_names_action
         }
 
@@ -1087,28 +1103,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
             cmds.getAttr("{0}.lockInfluenceWeights".format(inf_name))
             for inf_name in self.infs
         ]
-    
-    def _toggle_inf_locks(self, infs, enabled):
-        """
-        Sets lock on influences by table's columns.
-        
-        Args:
-            infs(string[]): A list of influence names to set.
-            enabled(bool): Locks if True.
-        """
-        if enabled:
-            description = "Lock influences"
-        else:
-            description = "Unlock influences"
-        
-        self._undo_stack.push(
-            command_lock_infs.CommandLockInfs(
-                self.__class__,
-                description,
-                infs,
-                enabled))
-
-        self._set_undo_buttons_enabled_state()
     
     def _get_all_infs(self):
         """
@@ -1454,7 +1448,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if infs:
             inf_index = self.infs.index(infs[-1])
             do_lock = not self.locks[inf_index]
-            self._toggle_inf_locks(infs, do_lock)
+            self.toggle_inf_locks(infs, do_lock)
 
 #
 # Callbacks
@@ -1524,7 +1518,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
     def _weights_view_on_key_pressed(self, event):
         key_code = event.key() | event.modifiers()
-        if key_code == self.toggle_inf_lock_key_code:
+        if key_code in self.toggle_inf_lock_key_codes:
             self._toggle_selected_inf_locks()
         else:
             QtWidgets.QTableView.keyPressEvent(self.sender(), event)
@@ -1677,6 +1671,20 @@ class WeightsEditor(QtWidgets.QMainWindow):
             new_skin_data,
             vert_indexes,
             table_selection)
+
+    def _export_weights_on_clicked(self):
+        try:
+            SkinnedObj.export_selected_skin()
+        except Exception as err:
+            utils.show_error_msg("Unable to export", str(err), self)
+
+    def _import_weights_on_clicked(self, use_world_positions):
+        try:
+            SkinnedObj.import_selected_skin(use_world_positions)
+            if self.obj.is_valid():
+                self._refresh_on_clicked()
+        except Exception as err:
+            utils.show_error_msg("Unable to export", str(err), self)
 
     def _set_add_on_clicked(self):
         self._edit_weights(self._add_spinbox.value(), WeightOperation.Relative)
@@ -1848,7 +1856,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         inf_index = self.infs.index(infs[0])
         lock = not self.locks[inf_index]
-        self._toggle_inf_locks(infs, lock)
+        self.toggle_inf_locks(infs, lock)
 
     def _add_inf_to_vert_on_clicked(self):
         """
@@ -1941,6 +1949,28 @@ class WeightsEditor(QtWidgets.QMainWindow):
             weights_view.set_display_infs(self._get_selected_infs())
 
         self._collect_inf_locks()
+
+    def toggle_inf_locks(self, infs, enabled):
+        """
+        Sets lock on influences by table's columns.
+
+        Args:
+            infs(string[]): A list of influence names to set.
+            enabled(bool): Locks if True.
+        """
+        if enabled:
+            description = "Lock influences"
+        else:
+            description = "Unlock influences"
+
+        self._undo_stack.push(
+            command_lock_infs.CommandLockInfs(
+                self.__class__,
+                description,
+                infs,
+                enabled))
+
+        self._set_undo_buttons_enabled_state()
 
     def update_vert_colors(self, vert_filter=[]):
         """

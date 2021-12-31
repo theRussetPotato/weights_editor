@@ -26,7 +26,8 @@ class Hotkey:
         Hotkeys.SelectRingLoop: {"key": QtCore.Qt.Key_R, "ctrl": True},
         Hotkeys.SelectPerimeter: {"key": QtCore.Qt.Key_T, "ctrl": True},
         Hotkeys.SelectShell: {"key": QtCore.Qt.Key_A, "ctrl": True, "shift": True},
-        Hotkeys.ToggleInfLock: {"key": QtCore.Qt.Key_Space}
+        Hotkeys.ToggleInfLock: {"key": QtCore.Qt.Key_Space},
+        Hotkeys.ToggleInfLock2: {"key": QtCore.Qt.Key_L}
     }
 
     def __init__(self, caption, key, func, ctrl=False, shift=False, alt=False):

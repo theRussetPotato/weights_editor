@@ -40,3 +40,4 @@ class Hotkeys:
     SelectPerimeter = "Select perimeter"
     SelectShell = "Select shell"
     ToggleInfLock = "Toggle inf lock"
+    ToggleInfLock2 = "Toggle inf lock 2"

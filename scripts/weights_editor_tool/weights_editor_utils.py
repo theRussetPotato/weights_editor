@@ -256,6 +256,37 @@ def get_skin_cluster(obj):
         return skin_clusters[0]
 
 
+def build_skin_cluster(obj, skin_jnts, max_infs=5, skin_method=0, dqs_support_non_rigid=False, name="skinCluster"):
+    """
+    Creates a skinCluster with supplied joints.
+
+    Args:
+        obj(string): Object to add skinCluster to.
+        skin_jnts(string[]): List of joints to skin with.
+        max_infs(int): Number of max influences skinCluster.
+        skin_method(int): Skinning method of skinCluster.
+        dqs_support_non_rigid(bool)
+        name(string): The name of the new sking cluster.
+
+    Returns:
+        The name of the new skinCluster.
+    """
+    skin_cluster = get_skin_cluster(obj)
+    if skin_cluster:
+        cmds.delete(skin_cluster)
+
+    new_skin_cluster = cmds.skinCluster(
+        skin_jnts, obj,
+        toSelectedBones=True,
+        maximumInfluences=max_infs,
+        skinMethod=skin_method,
+        name=name)[0]
+
+    cmds.setAttr("{}.dqsSupportNonRigid".format(new_skin_cluster), dqs_support_non_rigid)
+
+    return new_skin_cluster
+
+
 def get_influences(skin_cluster):
     return cmds.skinCluster(skin_cluster, q=True, inf=True) or []
 

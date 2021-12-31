@@ -48,6 +48,14 @@ class AbstractWeightsView(QtWidgets.QTableView):
         else:
             self.setVerticalHeader(self._header)
 
+        self._lock_inf_action = QtWidgets.QAction(self)
+        self._lock_inf_action.setText("Lock influence")
+        self._lock_inf_action.triggered.connect(self._lock_inf_on_triggered)
+
+        self._unlock_inf_action = QtWidgets.QAction(self)
+        self._unlock_inf_action.setText("Unlock influence")
+        self._unlock_inf_action.triggered.connect(self._unlock_inf_on_triggered)
+
         self._display_inf_action = QtWidgets.QAction(self)
         self._display_inf_action.setText("Display influence (middle-click)")
         self._display_inf_action.triggered.connect(self._display_inf_on_triggered)
@@ -70,6 +78,9 @@ class AbstractWeightsView(QtWidgets.QTableView):
 
         self._header_context_menu = QtWidgets.QMenu(parent=self)
         self._header_context_menu.addAction(self._display_inf_action)
+        self._header_context_menu.addSeparator()
+        self._header_context_menu.addAction(self._lock_inf_action)
+        self._header_context_menu.addAction(self._unlock_inf_action)
         self._header_context_menu.addSeparator()
         self._header_context_menu.addAction(self._select_inf_verts_action)
         self._header_context_menu.addAction(self._select_inf_action)
@@ -146,6 +157,9 @@ class AbstractWeightsView(QtWidgets.QTableView):
             self._old_skin_data = self._editor_inst.obj.skin_data.copy()
             self.edit(self.currentIndex())
 
+    def _get_last_clicked_inf(self):
+        return self.table_model.display_infs[self._header.last_index]
+
     def _header_on_context_trigger(self, point):
         self._header_context_menu.exec_(self.mapToGlobal(point))
 
@@ -157,15 +171,19 @@ class AbstractWeightsView(QtWidgets.QTableView):
         self.header_middle_clicked.emit(inf)
 
     def _display_inf_on_triggered(self):
-        inf = self.table_model.display_infs[self._header.last_index]
-        self.display_inf_triggered.emit(inf)
+        self.display_inf_triggered.emit(self._get_last_clicked_inf())
+
+    def _lock_inf_on_triggered(self):
+        self._editor_inst.toggle_inf_locks([self._get_last_clicked_inf()], True)
+
+    def _unlock_inf_on_triggered(self):
+        self._editor_inst.toggle_inf_locks([self._get_last_clicked_inf()], False)
 
     def _select_inf_verts_on_triggered(self):
-        inf = self.table_model.display_infs[self._header.last_index]
-        self.select_inf_verts_triggered.emit(inf)
+        self.select_inf_verts_triggered.emit(self._get_last_clicked_inf())
 
     def _select_inf_on_triggered(self):
-        inf = self.table_model.display_infs[self._header.last_index]
+        inf = self._get_last_clicked_inf()
         if cmds.objExists(inf):
             cmds.select(inf)
 
