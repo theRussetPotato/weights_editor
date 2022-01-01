@@ -1,4 +1,4 @@
-name: Weights Editor Unit Tests
+name: Weights Editor
 
 # Run tests on any push or pullRequest event
 on: [push, pull_request]
