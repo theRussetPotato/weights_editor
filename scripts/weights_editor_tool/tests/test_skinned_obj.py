@@ -1,13 +1,7 @@
-import sys
-
-print("*******SKIN")
-for path in sys.path:
-    print(path)
-
 from maya import cmds
 
-from weights_editor_tool.classes.skinned_obj import SkinnedObj
 from weights_editor_tool.tests.base import MayaBaseTestCase
+from weights_editor_tool.classes.skinned_obj import SkinnedObj
 
 
 class TestSkinnedObj(MayaBaseTestCase):
