@@ -1,6 +1,6 @@
 import sys
 
-print("*******TEST")
+print("*******SKIN")
 for path in sys.path:
     print(path)
 
