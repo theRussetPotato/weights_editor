@@ -22,11 +22,6 @@ from maya import cmds
 from weights_editor_tool import weights_editor_utils as utils
 
 
-print("*******BASE")
-for path in sys.path:
-    print(path)
-
-
 class MayaBaseTestCase(TestCase):
 
     @classmethod

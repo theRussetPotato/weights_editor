@@ -1,6 +1,6 @@
 from maya import cmds
 
-from weights_editor_tool.tests.base import MayaBaseTestCase
+from base import MayaBaseTestCase
 from weights_editor_tool.classes.skinned_obj import SkinnedObj
 
 
