@@ -1,3 +1,9 @@
+import sys
+
+print("*******TEST")
+for path in sys.path:
+    print(path)
+
 from maya import cmds
 
 from weights_editor_tool.classes.skinned_obj import SkinnedObj
