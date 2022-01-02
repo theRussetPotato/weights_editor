@@ -259,7 +259,7 @@ class TableModel(abstract_weights_view.AbstractModel):
             value = self._get_value_by_index(index)
             
             if role == QtCore.Qt.ForegroundRole:
-                inf_index = self._editor_inst.infs.index(inf)
+                inf_index = self._editor_inst.obj.infs.index(inf)
                 is_locked = self._editor_inst.locks[inf_index]
                 if is_locked:
                     return self._locked_text
@@ -329,8 +329,8 @@ class TableModel(abstract_weights_view.AbstractModel):
             if orientation == QtCore.Qt.Horizontal:
                 inf_name = self.display_infs[column]
                 
-                if inf_name in self._editor_inst.infs:
-                    inf_index = self._editor_inst.infs.index(inf_name)
+                if inf_name in self._editor_inst.obj.infs:
+                    inf_index = self._editor_inst.obj.infs.index(inf_name)
                     
                     is_locked = self._editor_inst.locks[inf_index]
                     if is_locked:

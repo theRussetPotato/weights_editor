@@ -220,8 +220,8 @@ class InfListModel(QtGui.QStandardItemModel):
                 return self._active_inf_back_color
         elif role == QtCore.Qt.ForegroundRole:
             # Show locked influences.
-            if inf_name in self._editor_inst.infs:
-                inf_index = self._editor_inst.infs.index(inf_name)
+            if inf_name in self._editor_inst.obj.infs:
+                inf_index = self._editor_inst.obj.infs.index(inf_name)
                 if self._editor_inst.locks[inf_index]:
                     if inf_name == self._editor_inst.color_inf:
                         return self._active_inf_text_color
@@ -233,9 +233,9 @@ class InfListModel(QtGui.QStandardItemModel):
         elif role == QtCore.Qt.DecorationRole:
             icon = self._joint_icon
 
-            if inf_name in self._editor_inst.infs:
+            if inf_name in self._editor_inst.obj.infs:
                 # Show locked influence icons.
-                inf_index = self._editor_inst.infs.index(inf_name)
+                inf_index = self._editor_inst.obj.infs.index(inf_name)
                 if self._editor_inst.locks[inf_index]:
                     icon = self._lock_icon
 

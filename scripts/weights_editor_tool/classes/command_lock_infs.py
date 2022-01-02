@@ -33,7 +33,7 @@ class CommandLockInfs(QtWidgets.QUndoCommand):
         self._editor_cls.instance.inf_list.begin_update()
 
         for inf, enabled in self._infs.items():
-            if not cmds.objExists(inf) or inf not in self._editor_cls.instance.infs:
+            if not cmds.objExists(inf) or inf not in self._editor_cls.instance.obj.infs:
                 continue
 
             if use_redo_value:
@@ -43,7 +43,7 @@ class CommandLockInfs(QtWidgets.QUndoCommand):
 
             cmds.setAttr("{0}.lockInfluenceWeights".format(inf), lock)
 
-            inf_index = self._editor_cls.instance.infs.index(inf)
+            inf_index = self._editor_cls.instance.obj.infs.index(inf)
 
             self._editor_cls.instance.locks[inf_index] = lock
 

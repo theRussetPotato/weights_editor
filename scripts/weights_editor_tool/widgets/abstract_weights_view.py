@@ -232,7 +232,7 @@ class AbstractWeightsView(QtWidgets.QTableView):
         if self._editor_inst.color_style == ColorTheme.Softimage:
             for index in range(count):
                 header_name = self.table_model.get_inf(index)
-                rgb = self._editor_inst.inf_colors.get(header_name)
+                rgb = self._editor_inst.obj.inf_colors.get(header_name)
 
                 color = None
                 if rgb is not None:

@@ -26,8 +26,9 @@ def show_error_msg(title, msg, parent):
 
 
 def get_maya_window():
-    ptr = OpenMayaUI.MQtUtil.mainWindow()
-    return shiboken2.wrapInstance(long(ptr), QtWidgets.QWidget)
+    if not cmds.about(batch=True):
+        ptr = OpenMayaUI.MQtUtil.mainWindow()
+        return shiboken2.wrapInstance(long(ptr), QtWidgets.QWidget)
 
 
 def load_pixmap(file_name, width=None, height=None):
@@ -52,10 +53,13 @@ def is_version_string_greater(ver_str_1, ver_str_2):
 
 
 def create_shortcut(key_sequence, callback):
-    shortcut = QtWidgets.QShortcut(key_sequence, get_maya_window())
-    shortcut.setContext(QtCore.Qt.ApplicationShortcut)
-    shortcut.activated.connect(callback)
-    return shortcut
+    maya_window = get_maya_window()
+
+    if maya_window:
+        shortcut = QtWidgets.QShortcut(key_sequence, maya_window)
+        shortcut.setContext(QtCore.Qt.ApplicationShortcut)
+        shortcut.activated.connect(callback)
+        return shortcut
 
 
 def wrap_layout(widgets, orientation=QtCore.Qt.Vertical, spacing=None, margins=None, parent=None):

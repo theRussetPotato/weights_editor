@@ -29,16 +29,21 @@ class SkinnedObj:
         self.skin_cluster = None
         self.skin_data = None
         self.vert_count = 0
+        self.infs = []
+        self.inf_colors = {}
 
         if self.is_valid():
             self.vert_count = utils.get_vert_count(self.name)
 
+            self.update_skin_data()
+
+            if self.has_valid_skin():
+                self.collect_influence_colors()
+                self.infs = self.get_all_infs()
+
     @classmethod
-    def create(cls, obj, get_skin_data=True):
-        skinned_obj = cls(obj)
-        if get_skin_data:
-            skinned_obj.update_skin_data()
-        return skinned_obj
+    def create(cls, obj):
+        return cls(obj)
 
     @classmethod
     def create_empty(cls):
@@ -208,6 +213,13 @@ class SkinnedObj:
         weights_count = len(cmds.getAttr("{0}.weightList[*]".format(self.skin_cluster)))
         return vert_count != weights_count
 
+    def get_all_infs(self):
+        """
+        Gets and returns a list of all influences from the active skinCluster.
+        Also collects unique colors of each influence for the Softimage theme.
+        """
+        return sorted(utils.get_influences(self.skin_cluster))
+
     def select_inf_vertexes(self, infs):
         """
         Selects effected vertexes by supplied influences.
@@ -363,19 +375,19 @@ class SkinnedObj:
 
         utils.apply_vert_colors(self.name, vert_colors, vert_indexes)
 
-    def display_multi_color_influence(self, inf_colors=None, vert_filter=[]):
+    def display_multi_color_influence(self, vert_filter=[]):
         """
         Mimics Softimage and displays all influences at once with their own unique color.
 
         Args:
-            inf_colors(dict): Dictionary of influence names and their rgb colors.
             vert_filter(int[]): List of vertex indexes to only operate on.
 
         Returns:
             A dictionary of {inf_name:[r, g, b]...}
         """
-        if inf_colors is None:
-            inf_colors = self.collect_influence_colors()
+
+        if self.inf_colors is None:
+            self.collect_influence_colors()
 
         vert_colors = []
         vert_indexes = []
@@ -387,7 +399,7 @@ class SkinnedObj:
             final_color = [0, 0, 0]
 
             for inf, weight in self.skin_data[vert_index]["weights"].items():
-                inf_color = inf_colors.get(inf)
+                inf_color = self.inf_colors.get(inf)
                 final_color[0] += inf_color[0] * weight
                 final_color[1] += inf_color[1] * weight
                 final_color[2] += inf_color[2] * weight
@@ -396,8 +408,6 @@ class SkinnedObj:
             vert_indexes.append(vert_index)
 
         utils.apply_vert_colors(self.name, vert_colors, vert_indexes)
-
-        return inf_colors
 
     def average_by_neighbours(self, vert_index, strength):
         """
@@ -519,24 +529,19 @@ class SkinnedObj:
             return True
         return False
 
-    def get_influences(self):
-        return utils.get_influences(self.skin_cluster)
-
     def get_influence_ids(self):
         return utils.get_influence_ids(self.skin_cluster)
 
     def collect_influence_colors(self, sat=250, brightness=150):
         """
         Generates a unique color for each influence.
+        {inf_name:[r, g, b]...}
 
         Args:
             sat(float)
             brightness(float)
-
-        Returns:
-            A dictionary of {inf_name:[r, g, b]...}
         """
-        infs = self.get_influences()
+        infs = self.get_all_infs()
         random.seed(0)
         random.shuffle(infs)
 
@@ -554,7 +559,7 @@ class SkinnedObj:
                 color.green() / 255.0,
                 color.blue() / 255.0]
 
-        return inf_colors
+        self.inf_colors = inf_colors
 
     def apply_current_skin_weights(self, vert_indexes, normalize=False, display_progress=False):
         """

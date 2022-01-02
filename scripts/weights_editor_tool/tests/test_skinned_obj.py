@@ -22,6 +22,11 @@ class TestSkinnedObj(MayaBaseTestCase):
         skinned_obj = SkinnedObj.create(scn_objs["mesh"])
         self.assertEqual(skinned_obj.vert_count, 32)
 
+    def test_infs(self):
+        scn_objs = self.create_skin_scene()
+        skinned_obj = SkinnedObj.create(scn_objs["mesh"])
+        self.assertEqual(skinned_obj.infs, ['left', 'lower', 'right', 'upper'])
+
     def test_serialize(self):
         scn_objs = self.create_skin_scene()
         skinned_obj = SkinnedObj.create(scn_objs["mesh"])

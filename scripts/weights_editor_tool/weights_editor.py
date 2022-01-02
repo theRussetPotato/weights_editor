@@ -77,16 +77,14 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._scale_preset_values = presets_dialog.PresetsDialog.Defaults["scale"]
         self._set_preset_values = presets_dialog.PresetsDialog.Defaults["set"]
 
+        self.block_selection_cb = False
+        self.ignore_cell_selection_event = False
         self.obj = SkinnedObj.create_empty()
         self.color_inf = None
         self.vert_indexes = []
-        self.infs = []
         self.locks = []
-        self.inf_colors = {}
-        self.color_style = ColorTheme.Max
-        self.block_selection_cb = False
-        self.ignore_cell_selection_event = False
         self.toggle_inf_lock_key_codes = []
+        self.color_style = ColorTheme.Max
 
         self._create_gui()
 
@@ -122,7 +120,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
     def run(cls):
         inst = cls()
         inst.show()
-        inst._pick_obj_on_clicked()
+        inst._pick_selected_obj()
         return inst
 
     @classmethod
@@ -367,7 +365,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         self._pick_obj_button = QtWidgets.QPushButton("", parent=self._central_widget)
         self._pick_obj_button.setToolTip("Switches to selected mesh for editing.")
-        self._pick_obj_button.clicked.connect(self._pick_obj_on_clicked)
+        self._pick_obj_button.clicked.connect(self._pick_selected_obj)
 
         self._refresh_button = self._create_button(
             "", "interface/refresh.png",
@@ -861,9 +859,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
             if hotkey.caption == Hotkeys.ToggleInfLock or hotkey.caption == Hotkeys.ToggleInfLock2:
                 self.toggle_inf_lock_key_codes.append(hotkey.key_code())
             else:
-                self.__class__.shortcuts.append(
-                    utils.create_shortcut(
-                        QtGui.QKeySequence(hotkey.key_code()), hotkey.func))
+                shortcut = utils.create_shortcut(
+                    QtGui.QKeySequence(hotkey.key_code()), hotkey.func)
+
+                if shortcut:
+                    self.__class__.shortcuts.append(shortcut)
 
         self._update_tooltips()
 
@@ -1051,7 +1051,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
             # Reset values
             self.obj = SkinnedObj.create(obj)
-            self.infs = []
             self._in_component_mode = utils.is_in_component_mode()
 
             # Reset undo stack.
@@ -1069,8 +1068,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
                         "You may have to duplicate the mesh and use copy weights to fix it.",
                         self)
                     return
-                else:
-                    self.infs = self._get_all_infs()
 
             self._update_inf_list()
 
@@ -1086,7 +1083,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             weights_view.end_update()
 
         if self.obj.is_valid():
-            if self.infs:
+            if self.obj.infs:
                 self._auto_assign_color_inf()
 
             if not self._hide_colors_button.isChecked() and self._in_component_mode:
@@ -1101,18 +1098,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
         """
         self.locks = [
             cmds.getAttr("{0}.lockInfluenceWeights".format(inf_name))
-            for inf_name in self.infs
+            for inf_name in self.obj.infs
         ]
     
-    def _get_all_infs(self):
-        """
-        Gets and returns a list of all influences from the active skinCluster.
-        Also collects unique colors of each influence for the Softimage theme.
-        """
-        self.inf_colors = self.obj.collect_influence_colors()
-        return sorted(self.obj.get_influences())
-    
-    def _get_selected_infs(self):
+    def _get_infs_by_selected_verts(self):
         """
         Gets and returns a list of influences that effects selected vertexes.
         """
@@ -1306,14 +1295,14 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view.end_update()
 
     def _auto_assign_color_inf(self):
-        if self.infs:
+        if self.obj.infs:
             weights_view = self.get_active_weights_view()
             display_infs = weights_view.display_infs()
 
             if display_infs:
                 self._set_color_inf(display_infs[0])
             else:
-                self._set_color_inf(self.infs[0])
+                self._set_color_inf(self.obj.infs[0])
 
     def _update_inf_list(self):
         self.inf_list.begin_update()
@@ -1321,7 +1310,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         try:
             self.inf_list.list_model.clear()
 
-            for i, inf in enumerate(sorted(self.infs)):
+            for i, inf in enumerate(sorted(self.obj.infs)):
                 item = QtGui.QStandardItem(inf)
                 item.setToolTip(inf)
                 item.setSizeHint(QtCore.QSize(1, 30))
@@ -1434,7 +1423,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         )
 
         if infs:
-            inf_index = self.infs.index(infs[-1])
+            inf_index = self.obj.infs.index(infs[-1])
             do_lock = not self.locks[inf_index]
             self.toggle_inf_locks(infs, do_lock)
 
@@ -1492,7 +1481,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             self._remove_shortcuts()
             self._del_prev_instance()
     
-    def _pick_obj_on_clicked(self):
+    def _pick_selected_obj(self):
         obj = utils.get_selected_mesh()
         self._update_obj(obj)
 
@@ -1833,16 +1822,16 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._set_undo_buttons_enabled_state()
     
     def _inf_list_on_middle_clicked(self, inf):
-        if inf in self.infs:
+        if inf in self.obj.infs:
             self._set_color_inf(inf)
             self.update_vert_colors()
 
     def _inf_list_on_toggle_locks_triggered(self, infs):
-        if infs[0] not in self.infs:
+        if infs[0] not in self.obj.infs:
             OpenMaya.MGlobal.displayError("Unable to find influence in internal data.. Is it out of sync?")
             return
 
-        inf_index = self.infs.index(infs[0])
+        inf_index = self.obj.infs.index(infs[0])
         lock = not self.locks[inf_index]
         self.toggle_inf_locks(infs, lock)
 
@@ -1869,7 +1858,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             item = self.inf_list.list_model.itemFromIndex(index)
             
             inf_name = item.text()
-            if inf_name not in self.infs:
+            if inf_name not in self.obj.infs:
                 continue
             
             sel_infs.append(inf_name)
@@ -1932,9 +1921,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view = self.get_active_weights_view()
 
         if self._show_all_button.isChecked():
-            weights_view.set_display_infs(self._get_all_infs())
+            self.collect_influence_colors()
+            weights_view.set_display_infs(self.obj.get_all_infs())
         else:
-            weights_view.set_display_infs(self._get_selected_infs())
+            weights_view.set_display_infs(self._get_infs_by_selected_verts())
 
         self._collect_inf_locks()
 
@@ -1974,7 +1964,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             if utils.is_curve(self.obj.name):
                 return
 
-        if not self.infs:
+        if not self.obj.infs:
             return
 
         if self.color_inf is None:
@@ -1982,10 +1972,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         if self.color_style == ColorTheme.Softimage:
             self._set_color_inf(None)
-
-            self.obj.display_multi_color_influence(
-                inf_colors=self.inf_colors,
-                vert_filter=vert_filter)
+            self.obj.display_multi_color_influence(vert_filter=vert_filter)
         else:
             if self.color_inf is not None:
                 self.obj.display_influence(
@@ -2015,3 +2002,4 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
 def run():
     WeightsEditor.run()
+
