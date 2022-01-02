@@ -26,8 +26,11 @@ if root_path not in sys.path:
     sys.path.insert(0, root_path)
 
 # Initialize Maya in batch mode.
-from io import IOBase
-in_batch_mode = isinstance(sys.stdout, IOBase)
+if sys.version_info < (3, 0):
+    in_batch_mode = isinstance(sys.stdout, file)
+else:
+    from io import IOBase
+    in_batch_mode = isinstance(sys.stdout, IOBase)
 
 if in_batch_mode:
     import maya.standalone
@@ -76,4 +79,28 @@ class MayaBaseTestCase(TestCase):
             "skinCluster": skin_cluster,
             "joints": jnts
         }
+
+    def _compare_dicts(self, d1, d2):
+        for key in d1:
+            if key not in d2:
+                raise AssertionError("Missing key `{}`\n{}\n{}".format(key, d1, d2))
+
+            if type(d1[key]) is dict:
+                self.compare_dicts(d1[key], d2[key])
+            else:
+                if d1[key] != d2[key]:
+                    if type(d1[key]) == float and type(d2[key]) == float:
+                        self.assertAlmostEqual(
+                            d1[key], d2[key], 7,
+                            "Values are different at key `{}`\n{}\n{}".format(key, d1, d2))
+                    else:
+                        raise AssertionError(
+                            "Values are different at key `{}` with values `{}` and `{}`\n{}\n{}".format(key, d1[key], d2[key], d1, d2))
+
+    def compare_dicts(self, d1, d2):
+        self._compare_dicts(d1, d2)
+        self._compare_dicts(d2, d1)
+
+    def runTest(self):
+        pass
 

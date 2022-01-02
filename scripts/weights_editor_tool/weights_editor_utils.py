@@ -159,7 +159,7 @@ def get_vert_count(obj):
         return cmds.polyEvaluate(obj, vertex=True)
 
 
-def is_close(val1, val2, rel_tol=1e-09, abs_tol=0.0):
+def is_close(val1, val2, rel_tol=1e-09, abs_tol=1e-15):
     """
     Determines if the two float values are close enough to each other.
     https://www.python.org/dev/peps/pep-0485/#proposed-implementation

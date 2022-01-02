@@ -26,4 +26,4 @@ class TestSkinnedObj(MayaBaseTestCase):
         scn_objs = self.create_skin_scene()
         skinned_obj = SkinnedObj.create(scn_objs["mesh"])
         skin_data = skinned_obj.serialize()
-        self.assertEqual(skin_data, self.get_test_data("serialized_data"))
+        self.compare_dicts(skin_data, self.get_test_data("serialized_data"))

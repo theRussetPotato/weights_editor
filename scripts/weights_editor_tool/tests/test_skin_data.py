@@ -14,7 +14,7 @@ class TestSkinData(MayaBaseTestCase):
         self.assertAlmostEqual(new_value, value_to_check)
 
         skinned_obj.skin_data.update_weight_value(vert_index, inf, new_value)
-        self.assertEqual(skinned_obj.skin_data[vert_index], data_to_check)
+        self.compare_dicts(skinned_obj.skin_data[vert_index], data_to_check)
 
     def test_add_sub_weights(self):
         scn_objs = self.create_skin_scene()
