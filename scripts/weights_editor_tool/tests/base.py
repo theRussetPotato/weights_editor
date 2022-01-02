@@ -13,7 +13,6 @@ TODO:
 import os
 import sys
 
-from PySide2 import QtWidgets
 from unittest import TestCase
 
 # Add tool to PYTHONPATH.
@@ -35,7 +34,6 @@ else:
     in_batch_mode = isinstance(sys.stdout, IOBase)
 
 if in_batch_mode:
-    qapp = QtWidgets.QApplication(sys.argv)
     import maya.standalone
     maya.standalone.initialize()
 
