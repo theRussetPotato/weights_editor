@@ -4,6 +4,7 @@ from maya import cmds
 from maya import OpenMaya
 from maya import OpenMayaAnim
 
+from weights_editor_tool.enums import WeightOperation
 from weights_editor_tool import weights_editor_utils as utils
 
 
@@ -97,6 +98,18 @@ class SkinData:
             return list(self.data[vert_index]["weights"].keys())
         except KeyError:
             return []
+
+    def calculate_new_value(self, input_value, vert_index, inf, weight_operation):
+        old_value = self.data[vert_index]["weights"].get(inf) or 0.0
+
+        if weight_operation == WeightOperation.Absolute:
+            return old_value, input_value
+        elif weight_operation == WeightOperation.Relative:
+            return old_value, utils.clamp(0.0, 1.0, old_value + input_value)
+        elif weight_operation == WeightOperation.Percentage:
+            return old_value, utils.clamp(0.0, 1.0, old_value * input_value)
+        else:
+            raise NotImplementedError("Weight operation hasn't been implemented")
 
     def update_weight_value(self, vert_index, inf_name, new_value):
         """

@@ -53,7 +53,7 @@ class SkinnedObj:
         if not utils.get_skin_cluster(sel[0]):
             raise RuntimeError("Unable to find a skinCluster from the selection")
 
-        picked_path = cls.launch_file_picker(0, "Export skin", file_name=sel[0].split("|")[-1])
+        picked_path = cls._launch_file_picker(0, "Export skin", file_name=sel[0].split("|")[-1])
         if not picked_path:
             return
 
@@ -79,7 +79,7 @@ class SkinnedObj:
         if vert_filter:
             sel = cmds.ls(hilite=True)
 
-        picked_path = cls.launch_file_picker(1, "Import skin")
+        picked_path = cls._launch_file_picker(1, "Import skin")
         if not picked_path:
             return
 
@@ -91,7 +91,7 @@ class SkinnedObj:
         return skinned_obj
 
     @classmethod
-    def launch_file_picker(cls, file_mode, caption, file_name="", ext="skin"):
+    def _launch_file_picker(cls, file_mode, caption, file_name="", ext="skin"):
         if cls.last_browsing_path is None:
             cls.last_browsing_path = cmds.workspace(q=True, fullName=True)
 
@@ -109,7 +109,7 @@ class SkinnedObj:
             return picked_path[0]
 
     @staticmethod
-    def find_influence_by_name(long_name):
+    def _find_influence_by_name(long_name):
         short_name = long_name.split("|")[-1]
         objs = cmds.ls(short_name)
 
@@ -120,11 +120,66 @@ class SkinnedObj:
                 return objs[0]
 
     @staticmethod
-    def to_mfn_mesh(mesh):
+    def _to_mfn_mesh(mesh):
         msel_list = om2.MSelectionList()
         msel_list.add(mesh)
         mdag_path = msel_list.getDagPath(0)
         return om2.MFnMesh(mdag_path)
+
+    def _get_world_points(self, space=om2.MSpace.kWorld):
+        mfn_mesh = self._to_mfn_mesh(self.name)
+        return mfn_mesh.getPoints(space)
+
+    def _map_to_closest_vertexes(self, verts_data, vert_filter=[]):
+        weights_data = {}
+
+        file_points = [
+            om2.MPoint(*verts_data[index]["world_pos"])
+            for index in sorted(verts_data.keys())
+        ]
+
+        # Build a temporary new mesh from the file's positions so that it's exposed to the api.
+        temp_mfn_mesh = om2.MFnMesh()
+        temp_mfn_mesh.addPolygon(file_points, False, 0)
+        new_mesh = om2.MFnDagNode(temp_mfn_mesh.parent(0)).fullPathName()
+        file_mfn_mesh = self._to_mfn_mesh(new_mesh)
+
+        try:
+            mesh_points = self._get_world_points()
+
+            with status_progress_bar.StatusProgressBar("Finding closest points", len(mesh_points)) as pbar:
+                for vert_index, point in enumerate(mesh_points):
+                    try:
+                        # Skip calculations if index is not in the filter.
+                        if vert_filter and vert_index not in vert_filter:
+                            continue
+
+                        # Get the closest face.
+                        closest_point = file_mfn_mesh.getClosestPoint(point, om2.MSpace.kWorld)
+                        face_index = closest_point[1]
+
+                        # Get face's vertexes and get the closest vertex.
+                        face_vertexes = file_mfn_mesh.getPolygonVertices(face_index)
+
+                        vert_distances = [
+                            (index, file_points[index].distanceTo(closest_point[0]))
+                            for index in face_vertexes
+                        ]
+
+                        closest_index = min(vert_distances, key=lambda dist: dist[1])[0]
+                        weights_data[vert_index] = closest_index
+
+                        if pbar.was_cancelled():
+                            raise RuntimeError("User cancelled")
+                    finally:
+                        pbar.next()
+        finally:
+            if cmds.objExists(new_mesh):
+                cmds.undoInfo(stateWithoutFlush=False)
+                cmds.delete(new_mesh)
+                cmds.undoInfo(stateWithoutFlush=True)
+
+        return weights_data
 
     def is_valid(self):
         return self.name is not None and cmds.objExists(self.name)
@@ -561,61 +616,6 @@ class SkinnedObj:
         if normalize:
             cmds.skinCluster(self.skin_cluster, e=True, forceNormalizeWeights=True)
 
-    def _get_world_points(self, space=om2.MSpace.kWorld):
-        mfn_mesh = self.to_mfn_mesh(self.name)
-        return mfn_mesh.getPoints(space)
-
-    def map_to_closest_vertexes(self, verts_data, vert_filter=[]):
-        weights_data = {}
-
-        file_points = [
-            om2.MPoint(*verts_data[index]["world_pos"])
-            for index in sorted(verts_data.keys())
-        ]
-
-        # Build a temporary new mesh from the file's positions so that it's exposed to the api.
-        temp_mfn_mesh = om2.MFnMesh()
-        temp_mfn_mesh.addPolygon(file_points, False, 0)
-        new_mesh = om2.MFnDagNode(temp_mfn_mesh.parent(0)).fullPathName()
-        file_mfn_mesh = self.to_mfn_mesh(new_mesh)
-
-        try:
-            mesh_points = self._get_world_points()
-
-            with status_progress_bar.StatusProgressBar("Finding closest points", len(mesh_points)) as pbar:
-                for vert_index, point in enumerate(mesh_points):
-                    try:
-                        # Skip calculations if index is not in the filter.
-                        if vert_filter and vert_index not in vert_filter:
-                            continue
-
-                        # Get the closest face.
-                        closest_point = file_mfn_mesh.getClosestPoint(point, om2.MSpace.kWorld)
-                        face_index = closest_point[1]
-
-                        # Get face's vertexes and get the closest vertex.
-                        face_vertexes = file_mfn_mesh.getPolygonVertices(face_index)
-
-                        vert_distances = [
-                            (index, file_points[index].distanceTo(closest_point[0]))
-                            for index in face_vertexes
-                        ]
-
-                        closest_index = min(vert_distances, key=lambda dist: dist[1])[0]
-                        weights_data[vert_index] = closest_index
-
-                        if pbar.was_cancelled():
-                            raise RuntimeError("User cancelled")
-                    finally:
-                        pbar.next()
-        finally:
-            if cmds.objExists(new_mesh):
-                cmds.undoInfo(stateWithoutFlush=False)
-                cmds.delete(new_mesh)
-                cmds.undoInfo(stateWithoutFlush=True)
-
-        return weights_data
-
     def import_skin(self, file_path, world_space=False, create_missing_infs=True, vert_filter=[]):
         """
         Imports skin weights from a file.
@@ -641,7 +641,7 @@ class SkinnedObj:
             for index in skin_data["verts"]:
                 for old_name in list(skin_data["verts"][index]["weights"]):
                     if old_name not in infs:
-                        infs[old_name] = self.find_influence_by_name(old_name) or old_name.split("|")[-1]
+                        infs[old_name] = self._find_influence_by_name(old_name) or old_name.split("|")[-1]
                     skin_data["verts"][index]["weights"][infs[old_name]] = skin_data["verts"][index]["weights"].pop(old_name)
 
                 if pbar.was_cancelled():
@@ -650,7 +650,7 @@ class SkinnedObj:
                 pbar.next()
 
         if world_space:
-            closest_vertexes = self.map_to_closest_vertexes(skin_data["verts"], vert_filter)
+            closest_vertexes = self._map_to_closest_vertexes(skin_data["verts"], vert_filter)
 
             weights_data = {
                 source_index: skin_data["verts"][file_index]
@@ -675,7 +675,7 @@ class SkinnedObj:
         for inf_id, inf_data in skin_data["influences"].items():
             inf_name = inf_data["name"]
             inf_short_name = inf_name.split("|")[-1]
-            inf = self.find_influence_by_name(inf_name)
+            inf = self._find_influence_by_name(inf_name)
 
             if inf is None:
                 if not create_missing_infs:
@@ -705,22 +705,11 @@ class SkinnedObj:
         self.skin_data.data = weights_data
         self.apply_current_skin_weights(vert_indexes, display_progress=True)
 
-    def export_skin(self, file_path):
-        """
-        Exports skin weights to a file.
-
-        Args:
-            file_path(string): An absolute path to save weights to.
-        """
+    def serialize(self):
         if not self.has_valid_skin():
             raise RuntimeError("Unable to detect a skinCluster on '{}'.".format(self.name))
 
-        output_dir = os.path.dirname(file_path)
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
         skin_data = self.skin_data.copy()
-
         mesh_points = self._get_world_points()
 
         with status_progress_bar.StatusProgressBar("Saving vert positions", len(mesh_points)) as pbar:
@@ -747,7 +736,7 @@ class SkinnedObj:
 
                 pbar.next()
 
-        skin_data = {
+        return {
             "version": constants.EXPORT_VERSION,
             "object": self.name,
             "verts": skin_data.data,
@@ -761,6 +750,19 @@ class SkinnedObj:
                 "dqs_support_non_rigid": cmds.getAttr("{}.dqsSupportNonRigid".format(self.skin_cluster))
             }
         }
+
+    def export_skin(self, file_path):
+        """
+        Exports skin weights to a file.
+
+        Args:
+            file_path(string): An absolute path to save weights to.
+        """
+        skin_data = self.serialize()
+
+        output_dir = os.path.dirname(file_path)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
         with open(file_path, "wb") as f:
             f.write(cPickle.dumps(skin_data))

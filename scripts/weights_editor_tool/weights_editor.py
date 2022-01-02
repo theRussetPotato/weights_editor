@@ -49,7 +49,7 @@ from weights_editor_tool.widgets import about_dialog
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "2.2.0"
+    version = "2.3.0"
     instance = None
     cb_selection_changed = None
     shortcuts = []
@@ -1171,14 +1171,14 @@ class WeightsEditor(QtWidgets.QMainWindow):
         
         self.ignore_cell_selection_event = False
     
-    def _edit_weights(self, input_value, mode):
+    def _edit_weights(self, input_value, weight_operation):
         """
         Sets new weight value while distributing the difference.
         Using the mode argument determines how input_value will be implemented.
         
         Args:
             input_value(float): Value between 0 to 1.0.
-            mode(enums.WeightOperation)
+            weight_operation(enums.WeightOperation)
         """
         if not self.obj.is_valid():
             return
@@ -1194,36 +1194,24 @@ class WeightsEditor(QtWidgets.QMainWindow):
         old_skin_data = self.obj.skin_data.copy()
 
         for vert_index, inf in verts_and_infs:
-            old_weight_data = old_skin_data[vert_index]["weights"]
-            old_value = old_weight_data.get(inf) or 0.0
-
-            new_value = None
-
-            if mode == WeightOperation.Absolute:
-                # Ignore if value is almost the same as its old value
-                new_value = input_value
-                if utils.is_close(old_value, new_value):
-                    continue
-            elif mode == WeightOperation.Relative:
-                new_value = utils.clamp(0.0, 1.0, old_value + input_value)
-            elif mode == WeightOperation.Percentage:
-                new_value = utils.clamp(0.0, 1.0, old_value * input_value)
+            old_value, new_value = self.obj.skin_data.calculate_new_value(input_value, vert_index, inf, weight_operation)
+            if utils.is_close(old_value, new_value):  # Skip it if the new value is too similar.
+                continue
 
             self.obj.skin_data.update_weight_value(vert_index, inf, new_value)
-            
             sel_vert_indexes.add(vert_index)
         
         if not sel_vert_indexes:
             return
         
-        if mode == WeightOperation.Absolute:
+        if weight_operation == WeightOperation.Absolute:
             description = "Set weights"
-        elif mode == WeightOperation.Relative:
+        elif weight_operation == WeightOperation.Relative:
             if input_value > 0:
                 description = "Add weights"
             else:
                 description = "Subtract weights"
-        elif mode == WeightOperation.Percentage:
+        elif weight_operation == WeightOperation.Percentage:
             description = "Scale weights"
         else:
             description = "Edit weights"
