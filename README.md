@@ -25,7 +25,7 @@ _Interface using the list view_
 - Displays weights in different color themes
 - Weight utilities to prune, smooth, mirror, and copy/paste vertex weights
 - Weights can be exported to a file
-- Weights can be imported via point order, or by world space positions of the mesh's vertices.
+- Weights can be imported via point order, or by world space positions of the mesh's vertices. Weights can also import onto selected vertices, so you can maintain existing skin weights outside of the selection.
 - Button to flood full weights to the vertex's closest influence for quick blocking
 - All operations support undo/redo
 - Temporary hotkeys that can be re-assigned
