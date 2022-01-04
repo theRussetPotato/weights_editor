@@ -100,8 +100,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             hotkey_module.Hotkey.create_from_default(Hotkeys.Prune, self._prune_on_clicked),
             hotkey_module.Hotkey.create_from_default(Hotkeys.RunSmooth, partial(self._run_smooth, SmoothOperation.Normal)),
             hotkey_module.Hotkey.create_from_default(Hotkeys.RunSmoothAllInfs, partial(self._run_smooth, SmoothOperation.AllInfluences)),
-            hotkey_module.Hotkey.create_from_default(Hotkeys.Undo, self._undo_on_click),
-            hotkey_module.Hotkey.create_from_default(Hotkeys.Redo, self._redo_on_click),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.Undo, self._undo_on_clicked),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.Redo, self._redo_on_clicked),
             hotkey_module.Hotkey.create_from_default(Hotkeys.GrowSelection, self._grow_selection),
             hotkey_module.Hotkey.create_from_default(Hotkeys.ShrinkSelection, self._shrink_selection),
             hotkey_module.Hotkey.create_from_default(Hotkeys.SelectEdgeLoop, self._select_edge_loop),
@@ -443,7 +443,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._mirror_mode.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self._mirror_mode.setMinimumWidth(35)
         self._mirror_mode.setMaximumWidth(50)
-        self._mirror_mode.addItems(["XY", "YZ", "XZ", "-XY", "-YZ", "-XZ"])
+        self._mirror_mode.addItems(["-XY", "XY", "-YZ", "YZ", "-XZ", "XZ"])
 
         self._mirror_surface = QtWidgets.QComboBox(parent=self._central_widget)
         self._mirror_surface.setToolTip("Mirror surface association")
@@ -485,11 +485,36 @@ class WeightsEditor(QtWidgets.QMainWindow):
              "stretch"],
             QtCore.Qt.Horizontal)
 
+        self._export_weights_button = self._create_button(
+            "Export weights", "interface/export_weights.png",
+            tool_tip="Export selected object's skin weights to a file",
+            click_event=self._export_weights_on_clicked)
+
+        self._import_weights_button = self._create_button(
+            "Import weights", "interface/import_weights.png",
+            tool_tip="Import skin weights onto the selected object<br><br>"
+                     "<b>Topologies from the file must match!</b>",
+            click_event=partial(self._import_weights_on_clicked, False))
+
+        self._import_weights_world_button = self._create_button(
+            "Import weights (world pos)", "interface/import_weights.png",
+            tool_tip="Import skin weights onto the selected object using world positions from the file<br><br>"
+                     "<b>This may be long for dense meshes!</b>",
+            click_event=partial(self._import_weights_on_clicked, True))
+
+        self._export_import_layout = utils.wrap_layout(
+            [self._export_weights_button,
+             self._import_weights_button,
+             self._import_weights_world_button,
+             "stretch"],
+            QtCore.Qt.Horizontal)
+
         self._weight_layout = utils.wrap_layout(
             [self._prune_layout,
              self._smooth_layout,
              self._mirror_layout,
-             self._copy_vert_layout],
+             self._copy_vert_layout,
+             self._export_import_layout],
             QtCore.Qt.Vertical,
             margins=[0, 0, 0, 0],
             spacing=5)
@@ -577,38 +602,15 @@ class WeightsEditor(QtWidgets.QMainWindow):
              self._toggle_hotkeys_button],
             QtCore.Qt.Horizontal)
 
-        self._export_weights_button = self._create_button(
-            "Export weights", "interface/export_weights.png",
-            tool_tip="Export selected object's skin weights to a file",
-            click_event=self._export_weights_on_clicked)
-
-        self._import_weights_button = self._create_button(
-            "Import weights", "interface/import_weights.png",
-            tool_tip="Import skin weights onto the selected object<br><br>"
-                     "<b>Topologies from the file must match!</b>",
-            click_event=partial(self._import_weights_on_clicked, False))
-
-        self._import_weights_world_button = self._create_button(
-            "Import weights (world pos)", "interface/import_weights.png",
-            tool_tip="Import skin weights onto the selected object using world positions from the file<br><br>"
-                     "<b>This may be long for dense meshes!</b>",
-            click_event=partial(self._import_weights_on_clicked, True))
-
-        self._export_import_layout = utils.wrap_layout(
-            [self._export_weights_button,
-             self._import_weights_button,
-             self._import_weights_world_button],
-            QtCore.Qt.Horizontal)
-
         # Undo buttons
         self._undo_button = self._create_button(
             "Undo", "interface/undo.png",
-            click_event=self._undo_on_click)
+            click_event=self._undo_on_clicked)
         self._undo_button.setFixedHeight(40)
 
         self._redo_button = self._create_button(
             "Redo", "interface/redo.png",
-            click_event=self._redo_on_click)
+            click_event=self._redo_on_clicked)
         self._redo_button.setFixedHeight(40)
 
         self._undo_layout = utils.wrap_layout(
@@ -650,7 +652,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
              self._weights_list,
              self._weights_table,
              self._settings_layout,
-             self._export_import_layout,
              self._undo_layout],
             QtCore.Qt.Vertical,
             spacing=3)
@@ -1086,11 +1087,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             if self.obj.infs:
                 self._auto_assign_color_inf()
 
-            if not self._hide_colors_button.isChecked() and self._in_component_mode:
-                self.obj.switch_to_color_set()
-                self.update_vert_colors()
-            else:
-                self.obj.hide_vert_colors()
+            self.update_vert_colors()
     
     def _collect_inf_locks(self):
         """
@@ -1127,28 +1124,29 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view = self.get_active_weights_view()
         weights_view.begin_update()
 
-        if not self.obj.is_valid():
-            return
+        try:
+            if not self.obj.is_valid():
+                return
 
-        selection_data = None
-        if load_selection:
-            selection_data = weights_view.save_table_selection()
-        
-        if update_skin_data:
-            self.obj.update_skin_data()
-        
-        if update_verts:
-            self.vert_indexes = utils.extract_indexes(
-                utils.get_vert_indexes(self.obj.name))
-        
-        if update_infs:
-            self.collect_display_infs()
-        
-        if update_headers:
-            weights_view.color_headers()
+            selection_data = None
+            if load_selection:
+                selection_data = weights_view.save_table_selection()
 
-        weights_view.end_update()
-        weights_view.emit_header_data_changed()
+            if update_skin_data:
+                self.obj.update_skin_data()
+
+            if update_verts:
+                self.vert_indexes = utils.extract_indexes(
+                    utils.get_vert_indexes(self.obj.name))
+
+            if update_infs:
+                self.collect_display_infs()
+
+            if update_headers:
+                weights_view.color_headers()
+        finally:
+            weights_view.end_update()
+            weights_view.emit_header_data_changed()
 
         if load_selection:
             if self._auto_select_infs_action.isChecked():
@@ -1157,7 +1155,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
                 weights_view.load_table_selection(selection_data)
 
         weights_view.fit_headers_to_contents()
-        
+
         self.ignore_cell_selection_event = False
     
     def _edit_weights(self, input_value, weight_operation):
@@ -1194,16 +1192,16 @@ class WeightsEditor(QtWidgets.QMainWindow):
             return
         
         if weight_operation == WeightOperation.Absolute:
-            description = "Set weights"
+            description = "Set weights by {}".format(input_value)
         elif weight_operation == WeightOperation.Relative:
             if input_value > 0:
-                description = "Add weights"
+                description = "Add weights by {}".format(input_value)
             else:
-                description = "Subtract weights"
+                description = "Subtract weights by {}".format(input_value)
         elif weight_operation == WeightOperation.Percentage:
-            description = "Scale weights"
+            description = "Scale weights by x{}".format(input_value)
         else:
-            description = "Edit weights"
+            description = "Edit weights by {}".format(input_value)
         
         self.add_undo_command(
             description,
@@ -1239,14 +1237,14 @@ class WeightsEditor(QtWidgets.QMainWindow):
             smooth_operation(SmoothOperation)
         """
         if not self.obj.is_valid():
-            OpenMaya.MGlobal.displayWarning("No object to operate on.")
+            OpenMaya.MGlobal.displayError("Need to pick a skinned object first.")
             return
 
         selected_vertexes = utils.extract_indexes(
             utils.get_vert_indexes(self.obj.name))
 
         if not selected_vertexes:
-            OpenMaya.MGlobal.displayWarning("No vertexes are selected.")
+            OpenMaya.MGlobal.displayError("No vertexes are selected.")
             return
 
         old_skin_data = self.obj.skin_data.copy()
@@ -1439,17 +1437,13 @@ class WeightsEditor(QtWidgets.QMainWindow):
         # Check if the current object is valid.
         if self.obj.is_valid() and self.obj.has_valid_skin():
             # Toggle influence colors if component selection mode changes.
-            now_in_component_mode = utils.is_in_component_mode()
+            was_in_component_mode = self._in_component_mode
+            self._in_component_mode = utils.is_in_component_mode()
 
             # No point to adjust colors if it's already disabled.
             if not self._hide_colors_button.isChecked():
-                if now_in_component_mode != self._in_component_mode:  # Only continue if component mode was switched.
-                    if now_in_component_mode:
-                        self.update_vert_colors()
-                    else:
-                        self.obj.hide_vert_colors()
-
-            self._in_component_mode = now_in_component_mode
+                if was_in_component_mode != self._in_component_mode:  # Only continue if component mode was switched.
+                    self.update_vert_colors()
 
             # Update table's data.
             if not self.block_selection_cb:
@@ -1605,13 +1599,18 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
     def _copy_vertex_on_clicked(self):
         if not self.obj.is_valid():
+            OpenMaya.MGlobal.displayError("Need to pick a skinned object first.")
             return
 
         vert_indexes = utils.extract_indexes(
             utils.get_vert_indexes(self.obj.name))
 
         if not vert_indexes:
-            OpenMaya.MGlobal.displayError("Need a vertex to be selected.")
+            OpenMaya.MGlobal.displayError("Must copy a vertex from the currently picked object.")
+            return
+
+        if not self.obj.is_valid() or not self.obj.has_valid_skin():
+            OpenMaya.MGlobal.displayError("The current object must be a skinned object.")
             return
 
         vert_index = vert_indexes[0]
@@ -1623,18 +1622,25 @@ class WeightsEditor(QtWidgets.QMainWindow):
             OpenMaya.MGlobal.displayError("Need to copy a vertex first.")
             return
 
-        if not self.obj.is_valid():
-            return
-
         vert_indexes = utils.extract_indexes(
             utils.get_vert_indexes(self.obj.name))
 
         if not vert_indexes:
+            OpenMaya.MGlobal.displayError("Must paste on a vertex from the currently picked object.")
+            return
+
+        if not self.obj.is_valid() or not self.obj.has_valid_skin():
+            OpenMaya.MGlobal.displayError("The current object must be a skinned object.")
             return
 
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
         old_skin_data = self.obj.skin_data.copy()
+
+        for inf in self._copied_vertex["weights"]:
+            if inf not in self.obj.infs:
+                OpenMaya.MGlobal.displayError("Unable to paste vertex because the skin is missing influence `{}`".format(inf))
+                return
 
         for vert_index in vert_indexes:
             self.obj.skin_data[vert_index] = copy.deepcopy(self._copied_vertex)
@@ -1651,17 +1657,19 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
     def _export_weights_on_clicked(self):
         try:
-            SkinnedObj.export_selected_skin()
+            self.obj.export_skin()
         except Exception as err:
-            utils.show_error_msg("Unable to export", str(err), self)
+            print(traceback.format_exc())
+            OpenMaya.MGlobal.displayError(str(err))
 
     def _import_weights_on_clicked(self, use_world_positions):
         try:
-            SkinnedObj.import_selected_skin(use_world_positions)
-            if self.obj.is_valid():
-                self._refresh_on_clicked()
+            status = self.obj.import_skin(world_space=use_world_positions)
+            if status:
+                self._update_obj(self.obj.name)
         except Exception as err:
-            utils.show_error_msg("Unable to export", str(err), self)
+            print(traceback.format_exc())
+            OpenMaya.MGlobal.displayError(str(err))
 
     def _set_add_on_clicked(self):
         self._edit_weights(self._add_spinbox.value(), WeightOperation.Relative)
@@ -1693,6 +1701,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
     def _flood_to_closest_on_clicked(self):
         if not self.obj.is_valid() or not self.obj.has_valid_skin():
+            OpenMaya.MGlobal.displayError("Must have a picked object with a valid skin.")
             return
 
         old_skin_data = self.obj.skin_data.copy()
@@ -1805,7 +1814,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
     def _show_inf_on_toggled(self, enabled):
         self._inf_dock_widget.setVisible(enabled)
     
-    def _undo_on_click(self):
+    def _undo_on_clicked(self):
         if not self._undo_stack.canUndo():
             OpenMaya.MGlobal.displayError("There are no more commands to undo.")
             return
@@ -1813,7 +1822,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._undo_stack.undo()
         self._set_undo_buttons_enabled_state()
     
-    def _redo_on_click(self):
+    def _redo_on_clicked(self):
         if not self._undo_stack.canRedo():
             OpenMaya.MGlobal.displayError("There are no more commands to redo.")
             return
@@ -1921,7 +1930,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         weights_view = self.get_active_weights_view()
 
         if self._show_all_button.isChecked():
-            self.collect_influence_colors()
+            self.obj.collect_influence_colors()
             weights_view.set_display_infs(self.obj.get_all_infs())
         else:
             weights_view.set_display_infs(self._get_infs_by_selected_verts())
@@ -1950,6 +1959,19 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         self._set_undo_buttons_enabled_state()
 
+    def _should_vert_colors_be_showing(self):
+        if self._hide_colors_button.isChecked() or not self._in_component_mode:
+            return False
+
+        if self.obj.is_valid():
+            if utils.is_curve(self.obj.name):
+                return False
+
+        if not self.obj.infs:
+            return False
+
+        return True
+
     def update_vert_colors(self, vert_filter=[]):
         """
         Displays active influence.
@@ -1957,30 +1979,25 @@ class WeightsEditor(QtWidgets.QMainWindow):
         Args:
             vert_filter(int[]): List of vertex indexes to only operate on.
         """
-        if self._hide_colors_button.isChecked():
-            return
+        show_colors = self._should_vert_colors_be_showing()
 
-        if self.obj.is_valid():
-            if utils.is_curve(self.obj.name):
-                return
+        if show_colors:
+            if self.color_inf is None:
+                self._auto_assign_color_inf()
 
-        if not self.obj.infs:
-            return
-
-        if self.color_inf is None:
-            self._auto_assign_color_inf()
-
-        if self.color_style == ColorTheme.Softimage:
-            self._set_color_inf(None)
-            self.obj.display_multi_color_influence(vert_filter=vert_filter)
+            if self.color_style == ColorTheme.Softimage:
+                self._set_color_inf(None)
+                self.obj.display_multi_color_influence(vert_filter=vert_filter)
+            else:
+                if self.color_inf is not None:
+                    self.obj.display_influence(
+                        self.color_inf,
+                        color_style=self.color_style,
+                        vert_filter=vert_filter)
         else:
-            if self.color_inf is not None:
-                self.obj.display_influence(
-                    self.color_inf,
-                    color_style=self.color_style,
-                    vert_filter=vert_filter)
+            self.obj.hide_vert_colors()
 
-        utils.toggle_display_colors(self.obj.name, True)
+        utils.toggle_display_colors(self.obj.name, show_colors)
 
     def add_undo_command(
             self, description, obj, old_skin_data, new_skin_data, vert_indexes,
@@ -2002,4 +2019,3 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
 def run():
     WeightsEditor.run()
-

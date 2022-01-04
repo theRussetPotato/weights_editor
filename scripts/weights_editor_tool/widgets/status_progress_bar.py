@@ -13,6 +13,9 @@ class StatusProgressBar:
     """
 
     def __init__(self, name, count, interruptable=True):
+        if count <= 0:
+            raise ValueError("Progress bar count cannot be set to 0.")
+
         self._name = name
         self._count = count
         self._progress_bar = None

@@ -55,6 +55,13 @@ class AboutDialog(QtWidgets.QDialog):
             "- Right-click to trigger a menu<br>"
             "- Double-click to select the influence")
 
+        self._limitations_groupbox = self._wrap_groupbox(
+            "Limitations",
+            "- This may not handle very dense meshes. Either work with smaller selections, or with a proxy mesh.<br>"
+            "- External changes to skin weights won't be detected. Things like painting weights while the tool is open"
+            " aren't reflected and require the object to be refreshed to see any modifications. This is to prevent "
+            "constant monitoring and improve its performance.")
+
         self._developed_by_groupbox = self._wrap_groupbox(
             "Developed by",
             "<b>Jason Labbe</b>")
@@ -70,6 +77,7 @@ class AboutDialog(QtWidgets.QDialog):
         self._scroll_layout = QtWidgets.QVBoxLayout()
         self._scroll_layout.addWidget(self._table_tips_groupbox)
         self._scroll_layout.addWidget(self._inf_list_tips_groupbox)
+        self._scroll_layout.addWidget(self._limitations_groupbox)
         self._scroll_layout.addWidget(self._developed_by_groupbox)
         self._scroll_layout.addWidget(self._special_thanks_groupbox)
         self._scroll_layout.addWidget(self._bugs_groupbox)

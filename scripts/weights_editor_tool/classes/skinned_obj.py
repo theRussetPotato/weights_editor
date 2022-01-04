@@ -12,6 +12,7 @@ from maya import OpenMaya
 from maya.api import OpenMaya as om2
 
 from PySide2 import QtGui
+from PySide2 import QtWidgets
 
 from weights_editor_tool import constants
 from weights_editor_tool.enums import ColorTheme
@@ -34,12 +35,7 @@ class SkinnedObj:
 
         if self.is_valid():
             self.vert_count = utils.get_vert_count(self.name)
-
             self.update_skin_data()
-
-            if self.has_valid_skin():
-                self.collect_influence_colors()
-                self.infs = self.get_all_infs()
 
     @classmethod
     def create(cls, obj):
@@ -48,52 +44,6 @@ class SkinnedObj:
     @classmethod
     def create_empty(cls):
         return cls(None)
-
-    @classmethod
-    def export_selected_skin(cls):
-        sel = cmds.ls(sl=True)
-        if not sel:
-            raise RuntimeError("Nothing is selected")
-
-        if not utils.get_skin_cluster(sel[0]):
-            raise RuntimeError("Unable to find a skinCluster from the selection")
-
-        picked_path = cls._launch_file_picker(0, "Export skin", file_name=sel[0].split("|")[-1])
-        if not picked_path:
-            return
-
-        skinned_obj = cls.create(sel[0])
-        skinned_obj.export_skin(picked_path)
-        return skinned_obj
-
-    @classmethod
-    def import_selected_skin(cls, use_world_positions):
-        sel = cmds.ls(sl=True)
-        if not sel:
-            raise RuntimeError("Nothing is selected")
-
-        meshes = cmds.listRelatives(sel[0], type="mesh", ni=True)
-        if not meshes:
-            raise RuntimeError("No mesh is selected")
-
-        vert_filter = [
-            int(vtx.split("[")[-1].rstrip("]"))
-            for vtx in cmds.filterExpand(cmds.ls(sl=True), sm=31) or []
-        ]
-
-        if vert_filter:
-            sel = cmds.ls(hilite=True)
-
-        picked_path = cls._launch_file_picker(1, "Import skin")
-        if not picked_path:
-            return
-
-        skinned_obj = cls.create(sel[0])
-        skinned_obj.import_skin(
-            picked_path,
-            world_space=use_world_positions,
-            vert_filter=vert_filter)
-        return skinned_obj
 
     @classmethod
     def _launch_file_picker(cls, file_mode, caption, file_name="", ext="skin"):
@@ -204,6 +154,8 @@ class SkinnedObj:
 
             if self.skin_cluster:
                 self.skin_data = SkinData.get(self.skin_cluster)
+                self.collect_influence_colors()
+                self.infs = self.get_all_infs()
 
     def is_skin_corrupt(self):
         """
@@ -621,23 +573,54 @@ class SkinnedObj:
         if normalize:
             cmds.skinCluster(self.skin_cluster, e=True, forceNormalizeWeights=True)
 
-    def import_skin(self, file_path, world_space=False, create_missing_infs=True, vert_filter=[]):
+    def import_skin(self, file_path=None, world_space=False, create_missing_infs=True, prompt=True):
         """
         Imports skin weights from a file.
 
         Args:
             file_path(string): An absolute path to save weights to.
-            world_space(boolean): False=loads by point order, True=loads by world positions
-            create_missing_infs(boolean): Create any missing influences so the skin can still import.
-            vert_filter(int[]): List of vertex numbers to import weights on. If empty it will import all all vertexes.
+            world_space(bool): False=loads by point order, True=loads by world positions
+            create_missing_infs(bool): Create any missing influences so the skin can still import.
+            prompt(bool): Asks for user confirmation if enabled.
         """
+        if not self.is_valid():
+            raise RuntimeError("Need to pick an object first.")
+
+        if prompt:
+            msg_box = QtWidgets.QMessageBox(
+                QtWidgets.QMessageBox.Warning,
+                "Undos will be lost",
+                "The tool's undo stack will reset and be lost.\n"
+                "Would you like to continue?")
+
+            msg_box.addButton(QtWidgets.QMessageBox.Cancel)
+            msg_box.addButton(QtWidgets.QMessageBox.Ok)
+            msg_box.setDefaultButton(QtWidgets.QMessageBox.Cancel)
+
+            if msg_box.exec_() == QtWidgets.QMessageBox.Cancel:
+                return False
+
+        if file_path is None:
+            file_path = self._launch_file_picker(1, "Import skin")
+            if not file_path:
+                return False
+
+        vert_filter = utils.extract_indexes(
+            utils.get_vert_indexes(self.name))
+
+        # Must have an existing skin cluster if we're only applying on some vertexes.
+        if vert_filter:
+            if not self.has_valid_skin():
+                raise RuntimeError("A skinCluster must already exist when importing weights onto vertexes")
+
         with open(file_path, "rb") as f:
             skin_data = cPickle.loads(f.read())
 
-        skin_data["verts"] = {
-            int(key): value
-            for key, value in skin_data["verts"].items()
-        }
+            # Keys need to be converted to ints.
+            skin_data["verts"] = {
+                int(key): value
+                for key, value in skin_data["verts"].items()
+            }
 
         # Rename influences to match scene.
         with status_progress_bar.StatusProgressBar("Matching influences", len(skin_data["verts"])) as pbar:
@@ -669,11 +652,6 @@ class SkinnedObj:
                 raise RuntimeError("Vert count doesn't match. (Object: {}, File: {})".format(obj_vert_count, file_vert_count))
             weights_data = skin_data["verts"]
 
-        if vert_filter:
-            for vert_index in list(weights_data.keys()):
-                if vert_index not in vert_filter:
-                    del weights_data[vert_index]
-
         # Get influences from file
         skin_jnts = []
 
@@ -693,22 +671,39 @@ class SkinnedObj:
 
             skin_jnts.append(inf)
 
-        # Create skinCluster with joints
-        self.skin_cluster = utils.build_skin_cluster(
-            self.name, skin_jnts,
-            max_infs=skin_data["skin_cluster"]["max_influences"],
-            skin_method=skin_data["skin_cluster"]["skinning_method"],
-            dqs_support_non_rigid=skin_data["skin_cluster"]["dqs_support_non_rigid"],
-            name=skin_data["skin_cluster"]["name"])
+        if vert_filter:
+            # Add any missing influences onto existing skin so that we can maintain weights.
+            infs = self.get_all_infs()
 
-        # Set weights to skinCluster
+            for inf in skin_jnts:
+                if inf not in infs:
+                    cmds.skinCluster(self.skin_cluster, e=True, lockWeights=True, weight=0, addInfluence=inf)
+                    cmds.setAttr("{}.lockInfluenceWeights".format(inf), False)
+        else:
+            # Create new skin cluster with influences.
+            if self.skin_cluster and cmds.objExists(self.skin_cluster):
+                cmds.delete(self.skin_cluster)
+
+            self.skin_cluster = utils.build_skin_cluster(
+                self.name, skin_jnts,
+                max_infs=skin_data["skin_cluster"]["max_influences"],
+                skin_method=skin_data["skin_cluster"]["skinning_method"],
+                dqs_support_non_rigid=skin_data["skin_cluster"]["dqs_support_non_rigid"],
+                name=skin_data["skin_cluster"]["name"])
+
+        # Define all verts to apply weights to.
         vert_indexes = [
             vert_index
             for vert_index in weights_data
+            if not vert_filter or vert_index in vert_filter
         ]
 
         self.skin_data.data = weights_data
+        self.collect_influence_colors()
+        self.infs = self.get_all_infs()
         self.apply_current_skin_weights(vert_indexes, display_progress=True)
+
+        return True
 
     def serialize(self):
         if not self.has_valid_skin():
@@ -756,13 +751,24 @@ class SkinnedObj:
             }
         }
 
-    def export_skin(self, file_path):
+    def export_skin(self, file_path=None):
         """
         Exports skin weights to a file.
 
         Args:
             file_path(string): An absolute path to save weights to.
         """
+        if not self.is_valid():
+            raise RuntimeError("Need to pick a skinned object first.")
+
+        if not self.has_valid_skin():
+            raise RuntimeError("Picked object needs to have a skin cluster to export.")
+
+        if file_path is None:
+            file_path = self._launch_file_picker(0, "Export skin", file_name=self.name.split("|")[-1])
+            if not file_path:
+                return
+
         skin_data = self.serialize()
 
         output_dir = os.path.dirname(file_path)
@@ -771,3 +777,5 @@ class SkinnedObj:
 
         with open(file_path, "wb") as f:
             f.write(cPickle.dumps(skin_data))
+
+        return file_path

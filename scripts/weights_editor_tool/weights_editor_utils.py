@@ -123,6 +123,12 @@ def get_selected_mesh():
     return sel[0]
 
 
+def get_uuid(obj):
+    uuids = cmds.ls(obj, uuid=True)
+    if uuids:
+        return uuids[0]
+
+
 def to_mobject(obj):
     """
     Gets an object as a MObject wrapper.
@@ -277,7 +283,7 @@ def build_skin_cluster(obj, skin_jnts, max_infs=5, skin_method=0, dqs_support_no
     """
     skin_cluster = get_skin_cluster(obj)
     if skin_cluster:
-        cmds.delete(skin_cluster)
+        return skin_cluster
 
     new_skin_cluster = cmds.skinCluster(
         skin_jnts, obj,
