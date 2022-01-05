@@ -30,6 +30,11 @@ _Interface using the list view_
 - All operations support undo/redo
 - Temporary hotkeys that can be re-assigned
 
+https://user-images.githubusercontent.com/14979497/148168582-5fb3e761-e70d-4904-be8e-a12da03faf3a.mp4
+<br>
+
+_Exporting weights then importing them onto a different object via world positions_
+
 ## Supported versions
 
 In short, Maya 2017 and above is supported.<br>
