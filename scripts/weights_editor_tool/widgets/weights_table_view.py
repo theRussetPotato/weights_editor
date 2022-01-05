@@ -1,6 +1,4 @@
-import copy
-
-import maya.cmds as cmds
+from maya import cmds
 
 from PySide2 import QtCore
 from PySide2 import QtWidgets
@@ -14,23 +12,23 @@ class TableView(abstract_weights_view.AbstractWeightsView):
     update_ended = QtCore.Signal(bool)
 
     def __init__(self, editor_inst):
-        super(TableView, self).__init__("table", QtCore.Qt.Horizontal, editor_inst)
+        super(TableView, self).__init__(QtCore.Qt.Horizontal, editor_inst)
 
-        self.selected_rows = set()
-        self.header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+        self._selected_rows = set()
+        self._header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 
-        self.sort_weights_vert_order_action = QtWidgets.QAction(self)
-        self.sort_weights_vert_order_action.setText("Sort by weights (vertex order)")
-        self.sort_weights_vert_order_action.triggered.connect(self.sort_vert_order_on_triggered)
+        self._sort_weights_vert_order_action = QtWidgets.QAction(self)
+        self._sort_weights_vert_order_action.setText("Sort by weights (vertex order)")
+        self._sort_weights_vert_order_action.triggered.connect(self._sort_vert_order_on_triggered)
 
-        self.header_context_menu.addAction(self.sort_weights_vert_order_action)
+        self._header_context_menu.addAction(self._sort_weights_vert_order_action)
 
         table_model = TableModel(editor_inst, parent=self)
-        self.set_model(table_model)
+        self._set_model(table_model)
 
     def selectionChanged(self, selected, deselected):
         QtWidgets.QTableView.selectionChanged(self, selected, deselected)
-        self.cell_selection_on_changed()
+        self._cell_selection_on_changed()
 
     def closeEditor(self, editor, hint):
         """
@@ -54,63 +52,60 @@ class TableView(abstract_weights_view.AbstractWeightsView):
                 self.model().get_vert_index(index.row())
                 for index in self.selectedIndexes()))
             
-            current_obj = self.editor_inst.get_obj_by_name(self.editor_inst.obj)
-            
-            self.editor_inst.add_undo_command(
+            self._editor_inst.add_undo_command(
                 "Set skin weights",
-                current_obj,
-                self.old_skin_data,
-                copy.deepcopy(self.editor_inst.skin_data),
+                self._editor_inst.obj.name,
+                self._old_skin_data,
+                self._editor_inst.obj.skin_data.copy(),
                 vert_indexes,
                 self.save_table_selection())
         
-        self.old_skin_data = None
+        self._old_skin_data = None
 
-    def sort_ascending_on_triggered(self):
-        self.reorder_rows(self.header.last_index, QtCore.Qt.DescendingOrder)
+    def _sort_ascending_on_triggered(self):
+        self._reorder_rows(self._header.last_index, QtCore.Qt.DescendingOrder)
 
-    def sort_descending_on_triggered(self):
-        self.reorder_rows(self.header.last_index, QtCore.Qt.AscendingOrder)
+    def _sort_descending_on_triggered(self):
+        self._reorder_rows(self._header.last_index, QtCore.Qt.AscendingOrder)
 
-    def sort_vert_order_on_triggered(self):
-        self.reorder_rows(self.header.last_index, None)
+    def _sort_vert_order_on_triggered(self):
+        self._reorder_rows(self._header.last_index, None)
 
-    def cell_selection_on_changed(self):
+    def _cell_selection_on_changed(self):
         """
         Selects vertexes based on what was selected on the table.
         """
-        if self.editor_inst.ignore_cell_selection_event or \
-                not self.editor_inst.auto_select_vertex_action.isChecked():
+        if self._editor_inst.ignore_cell_selection_event or \
+                not self._editor_inst.auto_select_vertex_action.isChecked():
             return
 
         rows = set(
             index.row()
-            for index in self.get_selected_indexes()
+            for index in self._get_selected_indexes()
         )
 
-        if rows == self.selected_rows:
+        if rows == self._selected_rows:
             return
 
-        self.selected_rows = rows
+        self._selected_rows = rows
 
-        current_obj = self.editor_inst.get_obj_by_name(self.editor_inst.obj)
-        if current_obj is not None:
+        if self._editor_inst.obj.is_valid():
             component = "vtx"
-            if utils.is_curve(current_obj):
+            if utils.is_curve(self._editor_inst.obj.name):
                 component = "cv"
 
             vertex_list = [
-                "{0}.{1}[{2}]".format(current_obj, component, self.editor_inst.vert_indexes[row])
+                "{0}.{1}[{2}]".format(self._editor_inst.obj.name, component, self._editor_inst.vert_indexes[row])
                 for row in rows
             ]
         else:
             vertex_list = []
 
-        self.editor_inst.block_selection_cb = True
+        self._editor_inst.block_selection_cb = True
         cmds.select(vertex_list)
-        self.editor_inst.block_selection_cb = False
+        self._editor_inst.block_selection_cb = False
 
-    def reorder_rows(self, column, order):
+    def _reorder_rows(self, column, order):
         """
         Re-orders and displays rows by weight values.
 
@@ -125,11 +120,11 @@ class TableView(abstract_weights_view.AbstractWeightsView):
         inf = self.table_model.display_infs[column]
 
         if order is None:
-            self.editor_inst.vert_indexes = sorted(self.editor_inst.vert_indexes)
+            self._editor_inst.vert_indexes = sorted(self._editor_inst.vert_indexes)
         else:
-            self.editor_inst.vert_indexes = sorted(
-                self.editor_inst.vert_indexes,
-                key=lambda x: self.editor_inst.skin_data[x]["weights"].get(inf) or 0.0,
+            self._editor_inst.vert_indexes = sorted(
+                self._editor_inst.vert_indexes,
+                key=lambda x: self._editor_inst.obj.skin_data[x]["weights"].get(inf) or 0.0,
                 reverse=order)
 
         self.end_update()
@@ -150,7 +145,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
             self.clearSelection()
 
     def get_selected_verts_and_infs(self):
-        indexes = self.get_selected_indexes()
+        indexes = self._get_selected_indexes()
         if not indexes:
             return []
 
@@ -162,7 +157,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
             if column >= len(self.table_model.display_infs):
                 continue
 
-            vert_index = self.editor_inst.vert_indexes[row]
+            vert_index = self._editor_inst.vert_indexes[row]
             inf = self.table_model.display_infs[column]
             verts_and_infs.append((vert_index, inf))
 
@@ -189,10 +184,10 @@ class TableView(abstract_weights_view.AbstractWeightsView):
             if inf not in selection_data:
                 selection_data[inf] = []
 
-            if index.row() > len(self.editor_inst.vert_indexes):
+            if index.row() > len(self._editor_inst.vert_indexes):
                 continue
 
-            vert_index = self.editor_inst.vert_indexes[index.row()]
+            vert_index = self._editor_inst.vert_indexes[index.row()]
             selection_data[inf].append(vert_index)
 
         return selection_data
@@ -219,10 +214,10 @@ class TableView(abstract_weights_view.AbstractWeightsView):
             column = self.table_model.display_infs.index(inf)
 
             for vert_index in vert_indexes:
-                if vert_index not in self.editor_inst.vert_indexes:
+                if vert_index not in self._editor_inst.vert_indexes:
                     continue
 
-                row = self.editor_inst.vert_indexes.index(vert_index)
+                row = self._editor_inst.vert_indexes.index(vert_index)
                 index = self.model().index(row, column)
                 item_selection.append(QtCore.QItemSelectionRange(index, index))
 
@@ -234,7 +229,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
 
     def end_update(self):
         super(TableView, self).end_update()
-        over_limit = len(self.editor_inst.vert_indexes) > self.table_model.max_display_count
+        over_limit = len(self._editor_inst.vert_indexes) > self.table_model.max_display_count
         self.update_ended.emit(over_limit)
 
 
@@ -245,11 +240,13 @@ class TableModel(abstract_weights_view.AbstractModel):
         self.max_display_count = 5000
     
     def rowCount(self, parent):
-        return min(
-            len(self.editor_inst.vert_indexes), self.max_display_count)
+        return min(len(self._editor_inst.vert_indexes), self.max_display_count)
     
     def columnCount(self, parent):
-        return len(self.display_infs)
+        if self._editor_inst.vert_indexes:
+            return len(self.display_infs)
+        else:
+            return 0
 
     def data(self, index, role):
         if not index.isValid():
@@ -259,20 +256,20 @@ class TableModel(abstract_weights_view.AbstractModel):
 
         if role in roles:
             inf = self.get_inf(index.column())
-            value = self.get_value_by_index(index)
+            value = self._get_value_by_index(index)
             
             if role == QtCore.Qt.ForegroundRole:
-                inf_index = self.editor_inst.infs.index(inf)
-                is_locked = self.editor_inst.locks[inf_index]
+                inf_index = self._editor_inst.obj.infs.index(inf)
+                is_locked = self._editor_inst.locks[inf_index]
                 if is_locked:
-                    return self.locked_text
+                    return self._locked_text
 
                 if value != 0 and value < 0.001:
-                    return self.low_weight_text
+                    return self._low_weight_text
                 elif value == 0:
-                    return self.zero_weight_text
+                    return self._zero_weight_text
                 elif value >= 0.999:
-                    return self.full_weight_text
+                    return self._full_weight_text
             else:
                 if value != 0 and value < 0.001:
                     return "< 0.001"
@@ -305,7 +302,7 @@ class TableModel(abstract_weights_view.AbstractModel):
 
             # Skip if the values are the same.
             # Necessary since left-clicking out of cell won't cancel.
-            old_value = self.get_value_by_index(index)
+            old_value = self._get_value_by_index(index)
             old_value_str = "{0:.3f}".format(old_value)
             value_str = "{0:.3f}".format(value)
             if value_str == old_value_str:
@@ -318,7 +315,8 @@ class TableModel(abstract_weights_view.AbstractModel):
         # Distribute the weights.
         inf = self.get_inf(index.column())
         vert_index = self.get_vert_index(index.row())
-        utils.update_weight_value(self.editor_inst.skin_data[vert_index]["weights"], inf, value)
+        self._editor_inst.obj.skin_data.update_weight_value(
+            vert_index, inf, value)
         
         return True
     
@@ -331,12 +329,12 @@ class TableModel(abstract_weights_view.AbstractModel):
             if orientation == QtCore.Qt.Horizontal:
                 inf_name = self.display_infs[column]
                 
-                if inf_name in self.editor_inst.infs:
-                    inf_index = self.editor_inst.infs.index(inf_name)
+                if inf_name in self._editor_inst.obj.infs:
+                    inf_index = self._editor_inst.obj.infs.index(inf_name)
                     
-                    is_locked = self.editor_inst.locks[inf_index]
+                    is_locked = self._editor_inst.locks[inf_index]
                     if is_locked:
-                        return self.header_locked_text
+                        return self._header_locked_text
         elif role == QtCore.Qt.BackgroundColorRole:
             # Color background
             if orientation == QtCore.Qt.Horizontal:
@@ -347,9 +345,9 @@ class TableModel(abstract_weights_view.AbstractModel):
                         return color
                 else:
                     # Color selected inf
-                    if self.editor_inst.color_inf is not None:
-                        if self.editor_inst.color_inf == self.get_inf(column):
-                            return self.header_active_inf_back_color
+                    if self._editor_inst.color_inf is not None:
+                        if self._editor_inst.color_inf == self.get_inf(column):
+                            return self._header_active_inf_back_color
         elif role == QtCore.Qt.DisplayRole:
             if orientation == QtCore.Qt.Horizontal:
                 # Show top labels
@@ -360,17 +358,17 @@ class TableModel(abstract_weights_view.AbstractModel):
                     return inf
             else:
                 # Show side labels
-                if self.editor_inst.vert_indexes and column < len(self.editor_inst.vert_indexes):
-                    return "vtx[{0}]".format(self.editor_inst.vert_indexes[column])
+                if self._editor_inst.vert_indexes and column < len(self._editor_inst.vert_indexes):
+                    return "vtx[{0}]".format(self._editor_inst.vert_indexes[column])
         elif role == QtCore.Qt.ToolTipRole:
             if orientation == QtCore.Qt.Horizontal:
                 if self.display_infs and column < len(self.display_infs):
                     return self.display_infs[column]
 
-    def get_vert_index(self, row):
-        return self.editor_inst.vert_indexes[row]
-
-    def get_value_by_index(self, index):
+    def _get_value_by_index(self, index):
         inf = self.get_inf(index.column())
         vert_index = self.get_vert_index(index.row())
-        return self.editor_inst.skin_data[vert_index]["weights"].get(inf) or 0
+        return self._editor_inst.obj.skin_data[vert_index]["weights"].get(inf) or 0
+
+    def get_vert_index(self, row):
+        return self._editor_inst.vert_indexes[row]

@@ -2,6 +2,7 @@ from PySide2 import QtCore
 from PySide2 import QtGui
 from PySide2 import QtWidgets
 
+from weights_editor_tool import constants
 from weights_editor_tool import weights_editor_utils as utils
 
 
@@ -10,11 +11,11 @@ class AboutDialog(QtWidgets.QDialog):
     def __init__(self, version, parent=None):
         QtWidgets.QDialog.__init__(self, parent=parent)
 
-        self.version = version
+        self._version = version
 
-        self.create_gui()
+        self._create_gui()
 
-    def wrap_groupbox(self, title, msg):
+    def _wrap_groupbox(self, title, msg):
         label = QtWidgets.QLabel(msg, parent=self)
         label.setWordWrap(True)
         label.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse | QtCore.Qt.LinksAccessibleByMouse)
@@ -29,17 +30,17 @@ class AboutDialog(QtWidgets.QDialog):
 
         return groupbox
 
-    def create_gui(self):
-        self.logo_img = QtWidgets.QLabel(parent=self)
-        self.logo_img.setAlignment(QtCore.Qt.AlignCenter)
-        self.logo_img.setPixmap(utils.load_pixmap("about/logo.png", width=125))
+    def _create_gui(self):
+        self._logo_img = QtWidgets.QLabel(parent=self)
+        self._logo_img.setAlignment(QtCore.Qt.AlignCenter)
+        self._logo_img.setPixmap(utils.load_pixmap("about/logo.png", width=125))
 
-        self.version_label = QtWidgets.QLabel("Version v{}".format(self.version), parent=self)
-        self.version_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.version_label.setStyleSheet(
+        self._version_label = QtWidgets.QLabel("Version v{}".format(self._version), parent=self)
+        self._version_label.setAlignment(QtCore.Qt.AlignCenter)
+        self._version_label.setStyleSheet(
             "QLabel {font-weight: bold; color: white;}")
 
-        self.table_tips_groupbox = self.wrap_groupbox(
+        self._table_tips_groupbox = self._wrap_groupbox(
             "Using weights list / table",
             "- Right-click a cell to edit its value<br>"
             "- Press space to toggle locks on selected influences<br>"
@@ -47,56 +48,64 @@ class AboutDialog(QtWidgets.QDialog):
             "- Middle-click influence header to display that influence<br>"
             "- Right-click influence header to trigger a menu")
 
-        self.inf_list_tips_groupbox = self.wrap_groupbox(
+        self._inf_list_tips_groupbox = self._wrap_groupbox(
             "Using influence list",
             "- Press space to toggle locks on selected influences<br>"
             "- Middle-click header to display that influence<br>"
             "- Right-click to trigger a menu<br>"
             "- Double-click to select the influence")
 
-        self.developed_by_groupbox = self.wrap_groupbox(
+        self._limitations_groupbox = self._wrap_groupbox(
+            "Limitations",
+            "- This may not handle very dense meshes. Either work with smaller selections, or with a proxy mesh.<br>"
+            "- External changes to skin weights won't be detected. Things like painting weights while the tool is open"
+            " aren't reflected and require the object to be refreshed to see any modifications. This is to prevent "
+            "constant monitoring and improve its performance.")
+
+        self._developed_by_groupbox = self._wrap_groupbox(
             "Developed by",
             "<b>Jason Labbe</b>")
 
-        self.special_thanks_groupbox = self.wrap_groupbox(
+        self._special_thanks_groupbox = self._wrap_groupbox(
             "Special thanks to",
             "<b>Enrique Caballero</b> and <b>John Lienard</b> for pushing me to make this")
 
-        self.bugs_groupbox = self.wrap_groupbox(
+        self._bugs_groupbox = self._wrap_groupbox(
             "Bugs and features",
-            "Please report any bugs on its <b><a href='https://www.github.com/theRussetPotato/weights_editor/issues'>GitHub issues page</a></b>")
+            "Please report any bugs on its <b><a href='{url}'>GitHub issues page</a></b>".format(url=constants.GITHUB_ISSUES))
 
-        self.scroll_layout = QtWidgets.QVBoxLayout()
-        self.scroll_layout.addWidget(self.table_tips_groupbox)
-        self.scroll_layout.addWidget(self.inf_list_tips_groupbox)
-        self.scroll_layout.addWidget(self.developed_by_groupbox)
-        self.scroll_layout.addWidget(self.special_thanks_groupbox)
-        self.scroll_layout.addWidget(self.bugs_groupbox)
-        self.scroll_layout.addStretch()
+        self._scroll_layout = QtWidgets.QVBoxLayout()
+        self._scroll_layout.addWidget(self._table_tips_groupbox)
+        self._scroll_layout.addWidget(self._inf_list_tips_groupbox)
+        self._scroll_layout.addWidget(self._limitations_groupbox)
+        self._scroll_layout.addWidget(self._developed_by_groupbox)
+        self._scroll_layout.addWidget(self._special_thanks_groupbox)
+        self._scroll_layout.addWidget(self._bugs_groupbox)
+        self._scroll_layout.addStretch()
 
-        self.scroll_frame = QtWidgets.QFrame(parent=self)
-        self.scroll_frame.setLayout(self.scroll_layout)
+        self._scroll_frame = QtWidgets.QFrame(parent=self)
+        self._scroll_frame.setLayout(self._scroll_layout)
 
-        self.scroll_area = QtWidgets.QScrollArea(parent=self)
-        self.scroll_area.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.scroll_area.setStyleSheet("QScrollArea {border: none;}")
-        self.scroll_area.setWidget(self.scroll_frame)
-        self.scroll_area.setWidgetResizable(True)
+        self._scroll_area = QtWidgets.QScrollArea(parent=self)
+        self._scroll_area.setFocusPolicy(QtCore.Qt.NoFocus)
+        self._scroll_area.setStyleSheet("QScrollArea {border: none;}")
+        self._scroll_area.setWidget(self._scroll_frame)
+        self._scroll_area.setWidgetResizable(True)
 
-        self.ok_button = QtWidgets.QPushButton("OK", parent=self)
-        self.ok_button.clicked.connect(self.close)
+        self._ok_button = QtWidgets.QPushButton("OK", parent=self)
+        self._ok_button.clicked.connect(self.close)
 
-        self.ok_layout = QtWidgets.QHBoxLayout()
-        self.ok_layout.addStretch()
-        self.ok_layout.addWidget(self.ok_button)
-        self.ok_layout.addStretch()
+        self._ok_layout = QtWidgets.QHBoxLayout()
+        self._ok_layout.addStretch()
+        self._ok_layout.addWidget(self._ok_button)
+        self._ok_layout.addStretch()
 
-        self.main_layout = QtWidgets.QVBoxLayout()
-        self.main_layout.addWidget(self.logo_img)
-        self.main_layout.addWidget(self.version_label)
-        self.main_layout.addWidget(self.scroll_area)
-        self.main_layout.addLayout(self.ok_layout)
-        self.setLayout(self.main_layout)
+        self._main_layout = QtWidgets.QVBoxLayout()
+        self._main_layout.addWidget(self._logo_img)
+        self._main_layout.addWidget(self._version_label)
+        self._main_layout.addWidget(self._scroll_area)
+        self._main_layout.addLayout(self._ok_layout)
+        self.setLayout(self._main_layout)
 
         self.setWindowTitle("About Weights Editor")
         self.resize(400, 500)

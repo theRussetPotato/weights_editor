@@ -1,0 +1,72 @@
+name: Weights Editor
+
+# Run tests on any push or pullRequest event
+on: [push, pull_request]
+
+jobs:
+
+  maya2018:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Run Unittests
+      uses: docker://mottosso/maya:2018 # For all available Maya versions, see https://github.com/mottosso/docker-maya
+      with:
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+
+  maya2019:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Load Docker Image
+      uses: docker://mottosso/maya:2019 # For all available Maya versions, see https://github.com/mottosso/docker-maya
+      with:
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+
+  maya2020:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Run Unittests
+      uses: docker://mottosso/maya:2020 # For all available Maya versions, see https://github.com/mottosso/docker-maya
+      with:
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+
+  maya2020sp1:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Load Docker Image
+      uses: docker://mottosso/maya:2020sp1 # For all available Maya versions, see https://github.com/mottosso/docker-maya
+      with:
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+
+  maya2022:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Load Docker Image
+      uses: docker://mottosso/maya:2022 # For all available Maya versions, see https://github.com/mottosso/docker-maya
+      with:
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+
+  maya2022-1:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Load Docker Image
+      uses: docker://mottosso/maya:2022.1 # For all available Maya versions, see https://github.com/mottosso/docker-maya
+      with:
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v

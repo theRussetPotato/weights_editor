@@ -1,25 +1,22 @@
-import copy
-
 from PySide2 import QtCore
 from PySide2 import QtWidgets
 
-from weights_editor_tool import weights_editor_utils as utils
 from weights_editor_tool.widgets import abstract_weights_view
 
 
 class ListView(abstract_weights_view.AbstractWeightsView):
 
     def __init__(self, editor_inst):
-        super(ListView, self).__init__("list", QtCore.Qt.Vertical, editor_inst)
+        super(ListView, self).__init__(QtCore.Qt.Vertical, editor_inst)
 
-        self.sort_inf_name_action = QtWidgets.QAction(self)
-        self.sort_inf_name_action.setText("Sort by inf name")
-        self.sort_inf_name_action.triggered.connect(self.sort_inf_name_on_triggered)
+        self._sort_inf_name_action = QtWidgets.QAction(self)
+        self._sort_inf_name_action.setText("Sort by inf name")
+        self._sort_inf_name_action.triggered.connect(self._sort_inf_name_on_triggered)
 
-        self.header_context_menu.addAction(self.sort_inf_name_action)
+        self._header_context_menu.addAction(self._sort_inf_name_action)
 
         table_model = ListModel(editor_inst, parent=self)
-        self.set_model(table_model)
+        self._set_model(table_model)
 
     def closeEditor(self, editor, hint):
         """
@@ -39,32 +36,26 @@ class ListView(abstract_weights_view.AbstractWeightsView):
         if self.model().input_value is not None:
             self.model().input_value = None
             
-            current_obj = self.editor_inst.get_obj_by_name(self.editor_inst.obj)
-            
-            self.editor_inst.add_undo_command(
+            self._editor_inst.add_undo_command(
                 "Set skin weights",
-                current_obj,
-                self.old_skin_data,
-                copy.deepcopy(self.editor_inst.skin_data),
-                self.editor_inst.vert_indexes,
+                self._editor_inst.obj.name,
+                self._old_skin_data,
+                self._editor_inst.obj.skin_data.copy(),
+                self._editor_inst.vert_indexes,
                 self.save_table_selection())
         
-        self.old_skin_data = None
+        self._old_skin_data = None
 
-    def sort_ascending_on_triggered(self):
-        self.reorder_by_values(QtCore.Qt.DescendingOrder)
+    def _sort_ascending_on_triggered(self):
+        self._reorder_by_values(QtCore.Qt.DescendingOrder)
 
-    def sort_descending_on_triggered(self):
-        self.reorder_by_values(QtCore.Qt.AscendingOrder)
+    def _sort_descending_on_triggered(self):
+        self._reorder_by_values(QtCore.Qt.AscendingOrder)
 
-    def sort_inf_name_on_triggered(self):
-        self.reorder_by_name()
+    def _sort_inf_name_on_triggered(self):
+        self._reorder_by_name()
 
-    def end_update(self):
-        self.table_model.average_weights = {}
-        super(ListView, self).end_update()
-
-    def reorder_by_name(self, order=QtCore.Qt.AscendingOrder):
+    def _reorder_by_name(self, order=QtCore.Qt.AscendingOrder):
         self.begin_update()
         selection_data = self.save_table_selection()
 
@@ -73,7 +64,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
         self.end_update()
         self.load_table_selection(selection_data)
 
-    def reorder_by_values(self, order):
+    def _reorder_by_values(self, order):
         self.begin_update()
         selection_data = self.save_table_selection()
 
@@ -84,6 +75,10 @@ class ListView(abstract_weights_view.AbstractWeightsView):
 
         self.end_update()
         self.load_table_selection(selection_data)
+
+    def end_update(self):
+        self.table_model.average_weights = {}
+        super(ListView, self).end_update()
 
     def color_headers(self):
         count = self.table_model.rowCount(self)
@@ -100,7 +95,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
             self.clearSelection()
 
     def get_selected_verts_and_infs(self):
-        indexes = self.get_selected_indexes()
+        indexes = self._get_selected_indexes()
         if not indexes:
             return []
 
@@ -111,7 +106,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
             if row >= len(self.table_model.display_infs):
                 continue
 
-            for vert_index in self.editor_inst.vert_indexes:
+            for vert_index in self._editor_inst.vert_indexes:
                 inf = self.table_model.display_infs[row]
                 verts_and_infs.append((vert_index, inf))
 
@@ -163,11 +158,11 @@ class ListView(abstract_weights_view.AbstractWeightsView):
         width = 0
         infs = self.display_infs()
 
-        if infs:
+        if infs and self._editor_inst.vert_indexes:
             if self.table_model.hide_long_names:
                 infs = [inf.split("|")[-1] for inf in infs]
 
-            font_metrics = self.editor_inst.fontMetrics()
+            font_metrics = self._editor_inst.fontMetrics()
             padding = 10
 
             width = sorted([
@@ -185,10 +180,13 @@ class ListModel(abstract_weights_view.AbstractModel):
         self.average_weights = {}
     
     def rowCount(self, parent):
-        return len(self.display_infs)
+        if self._editor_inst.vert_indexes:
+            return len(self.display_infs)
+        else:
+            return 0
     
     def columnCount(self, parent):
-        if self.display_infs:
+        if self.display_infs and self._editor_inst.vert_indexes:
             return 1
         else:
             return 0
@@ -204,17 +202,17 @@ class ListModel(abstract_weights_view.AbstractModel):
             value = self.get_average_weight(inf)
             
             if role == QtCore.Qt.ForegroundRole:
-                inf_index = self.editor_inst.infs.index(inf)
-                is_locked = self.editor_inst.locks[inf_index]
+                inf_index = self._editor_inst.obj.infs.index(inf)
+                is_locked = self._editor_inst.locks[inf_index]
                 if is_locked:
-                    return self.locked_text
+                    return self._locked_text
 
                 if value != 0 and value < 0.001:
-                    return self.low_weight_text
+                    return self._low_weight_text
                 elif value == 0:
-                    return self.zero_weight_text
+                    return self._zero_weight_text
                 elif value >= 0.999:
-                    return self.full_weight_text
+                    return self._full_weight_text
             else:
                 if value != 0 and value < 0.001:
                     return "< 0.001"
@@ -251,11 +249,9 @@ class ListModel(abstract_weights_view.AbstractModel):
         # Distribute the weights.
         inf = self.get_inf(index.row())
 
-        for vert_index in self.editor_inst.vert_indexes:
-            utils.update_weight_value(
-                self.editor_inst.skin_data[vert_index]["weights"],
-                inf,
-                value)
+        for vert_index in self._editor_inst.vert_indexes:
+            self._editor_inst.obj.skin_data.update_weight_value(
+                vert_index, inf, value)
 
         return True
     
@@ -268,12 +264,12 @@ class ListModel(abstract_weights_view.AbstractModel):
             if orientation == QtCore.Qt.Vertical:
                 inf_name = self.display_infs[index]
                 
-                if inf_name in self.editor_inst.infs:
-                    inf_index = self.editor_inst.infs.index(inf_name)
+                if inf_name in self._editor_inst.obj.infs:
+                    inf_index = self._editor_inst.obj.infs.index(inf_name)
                     
-                    is_locked = self.editor_inst.locks[inf_index]
+                    is_locked = self._editor_inst.locks[inf_index]
                     if is_locked:
-                        return self.header_locked_text
+                        return self._header_locked_text
         elif role == QtCore.Qt.BackgroundColorRole:
             # Color background
             if orientation == QtCore.Qt.Vertical:
@@ -284,9 +280,9 @@ class ListModel(abstract_weights_view.AbstractModel):
                         return color
                 else:
                     # Color selected inf
-                    if self.editor_inst.color_inf is not None:
-                        if self.editor_inst.color_inf == self.get_inf(index):
-                            return self.header_active_inf_back_color
+                    if self._editor_inst.color_inf is not None:
+                        if self._editor_inst.color_inf == self.get_inf(index):
+                            return self._header_active_inf_back_color
         elif role == QtCore.Qt.DisplayRole:
             if orientation == QtCore.Qt.Vertical:
                 # Show top labels
@@ -303,15 +299,15 @@ class ListModel(abstract_weights_view.AbstractModel):
                     return self.display_infs[index]
 
     def get_average_weight(self, inf):
-        if not self.editor_inst.vert_indexes:
+        if not self._editor_inst.vert_indexes:
             return 0
 
         if inf not in self.average_weights:
             values = [
-                self.editor_inst.skin_data[vert_index]["weights"].get(inf) or 0
-                for vert_index in self.editor_inst.vert_indexes
+                self._editor_inst.obj.skin_data[vert_index]["weights"].get(inf) or 0
+                for vert_index in self._editor_inst.vert_indexes
             ]
 
-            self.average_weights[inf] = sum(values) / len(self.editor_inst.vert_indexes)
+            self.average_weights[inf] = sum(values) / len(self._editor_inst.vert_indexes)
 
         return self.average_weights[inf]

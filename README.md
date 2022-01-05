@@ -8,12 +8,12 @@ A skin weights component editor inspired from Softimage.
 
 # Interface
 
-![weightsEditorTable](https://user-images.githubusercontent.com/14979497/142756715-f782bc31-a079-4f20-8247-f29e91501b62.png)<br>
+![weightsEditorTable](https://user-images.githubusercontent.com/14979497/148098205-d37b2533-c589-45fd-a84b-643963f1704c.png)<br>
 _Interface using the table view_
 
 <br>
 
-![weightsEditorList](https://user-images.githubusercontent.com/14979497/142756748-acfb8f3b-f66a-4b5d-a80a-65211c89fb14.png)<br>
+![weightsEditorList](https://user-images.githubusercontent.com/14979497/148098259-c2435bb9-cfff-42a7-8937-802cba182626.png)<br>
 _Interface using the list view_
 
 ## Features
@@ -23,9 +23,20 @@ _Interface using the list view_
 - Quickly lock or unlock selected influences by pressing space
 - Influence list on the side
 - Displays weights in different color themes
-- Weight utilities to prune, smooth, mirror, and copy weights
+- Weight utilities to prune, smooth, mirror, and copy/paste vertex weights
+- Weights can be exported to a file
+- Weights can be imported via point order, or by world space positions of the mesh's vertices. Weights can also import onto selected vertices, so you can maintain existing skin weights outside of the selection.
 - Button to flood full weights to the vertex's closest influence for quick blocking
 - All operations support undo/redo
+- Temporary hotkeys that can be re-assigned
+
+https://user-images.githubusercontent.com/14979497/148168582-5fb3e761-e70d-4904-be8e-a12da03faf3a.mp4
+
+_Exporting weights then importing them onto a different object via world positions_
+
+https://user-images.githubusercontent.com/14979497/148170835-fc301bd2-1dce-4f23-9632-02eb80eaa298.mp4
+
+_Importing weights onto selected vertices_
 
 ## Supported versions
 

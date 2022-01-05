@@ -1,6 +1,4 @@
-import copy
-
-import maya.cmds as cmds
+from maya import cmds
 
 from PySide2 import QtGui
 from PySide2 import QtCore
@@ -18,70 +16,82 @@ class AbstractWeightsView(QtWidgets.QTableView):
     display_inf_triggered = QtCore.Signal(str)
     select_inf_verts_triggered = QtCore.Signal(str)
 
-    def __init__(self, view_type, header_orientation, editor_inst):
+    def __init__(self, header_orientation, editor_inst):
         super(AbstractWeightsView, self).__init__(editor_inst)
-
-        self.orientation = header_orientation
-
-        system_font = QtWidgets.QApplication.font()
 
         self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.setAlternatingRowColors(True)
         self.setGridStyle(QtCore.Qt.DashLine)
-        self.font = QtGui.QFont(system_font.family(), system_font.pixelSize())
-        self.view_type = view_type
-        self.editor_inst = editor_inst
+
+        system_font = QtWidgets.QApplication.font()
+
+        self._orientation = header_orientation
+        self._font = QtGui.QFont(system_font.family(), system_font.pixelSize())
+        self._editor_inst = editor_inst
+        self._old_skin_data = None  # Need to store this to work with undo/redo.
         self.table_model = None
-        self.old_skin_data = None  # Need to store this to work with undo/redo.
 
-        self.header = None
-        if header_orientation == QtCore.Qt.Horizontal:
-            self.header = custom_header_view.CustomHeaderView(header_orientation, parent=self)
-        else:
-            self.header = custom_header_view.VerticalHeaderView(header_orientation, parent=self)
-        self.header.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.header.customContextMenuRequested.connect(self.header_on_context_trigger)
-        self.header.header_left_clicked.connect(self.header_on_left_clicked)
-        self.header.header_middle_clicked.connect(self.header_on_middle_clicked)
+        self._header = None
 
         if header_orientation == QtCore.Qt.Horizontal:
-            self.setHorizontalHeader(self.header)
+            self._header = custom_header_view.CustomHeaderView(header_orientation, parent=self)
         else:
-            self.setVerticalHeader(self.header)
+            self._header = custom_header_view.VerticalHeaderView(header_orientation, parent=self)
 
-        self.display_inf_action = QtWidgets.QAction(self)
-        self.display_inf_action.setText("Display influence (middle-click)")
-        self.display_inf_action.triggered.connect(self.display_inf_on_triggered)
+        self._header.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self._header.customContextMenuRequested.connect(self._header_on_context_trigger)
+        self._header.header_left_clicked.connect(self._header_on_left_clicked)
+        self._header.header_middle_clicked.connect(self._header_on_middle_clicked)
 
-        self.select_inf_verts_action = QtWidgets.QAction(self)
-        self.select_inf_verts_action.setText("Select vertexes effected by influence")
-        self.select_inf_verts_action.triggered.connect(self.select_inf_verts_on_triggered)
+        if header_orientation == QtCore.Qt.Horizontal:
+            self.setHorizontalHeader(self._header)
+        else:
+            self.setVerticalHeader(self._header)
 
-        self.select_inf_action = QtWidgets.QAction(self)
-        self.select_inf_action.setText("Select influence")
-        self.select_inf_action.triggered.connect(self.select_inf_on_triggered)
+        self._lock_inf_action = QtWidgets.QAction(self)
+        self._lock_inf_action.setText("Lock influence")
+        self._lock_inf_action.triggered.connect(self._lock_inf_on_triggered)
 
-        self.sort_weights_ascending_action = QtWidgets.QAction(self)
-        self.sort_weights_ascending_action.setText("Sort by weights (ascending)")
-        self.sort_weights_ascending_action.triggered.connect(self.sort_ascending_on_triggered)
+        self._unlock_inf_action = QtWidgets.QAction(self)
+        self._unlock_inf_action.setText("Unlock influence")
+        self._unlock_inf_action.triggered.connect(self._unlock_inf_on_triggered)
 
-        self.sort_weights_descending_action = QtWidgets.QAction(self)
-        self.sort_weights_descending_action.setText("Sort by weights (descending)")
-        self.sort_weights_descending_action.triggered.connect(self.sort_descending_on_triggered)
+        self._display_inf_action = QtWidgets.QAction(self)
+        self._display_inf_action.setText("Display influence (middle-click)")
+        self._display_inf_action.triggered.connect(self._display_inf_on_triggered)
 
-        self.header_context_menu = QtWidgets.QMenu(parent=self)
-        self.header_context_menu.addAction(self.display_inf_action)
-        self.header_context_menu.addSeparator()
-        self.header_context_menu.addAction(self.select_inf_verts_action)
-        self.header_context_menu.addAction(self.select_inf_action)
-        self.header_context_menu.addSeparator()
-        self.header_context_menu.addAction(self.sort_weights_ascending_action)
-        self.header_context_menu.addAction(self.sort_weights_descending_action)
+        self._select_inf_verts_action = QtWidgets.QAction(self)
+        self._select_inf_verts_action.setText("Select vertexes effected by influence")
+        self._select_inf_verts_action.triggered.connect(self._select_inf_verts_on_triggered)
 
-    def sort_ascending_on_triggered(self):
+        self._select_inf_action = QtWidgets.QAction(self)
+        self._select_inf_action.setText("Select influence")
+        self._select_inf_action.triggered.connect(self._select_inf_on_triggered)
+
+        self._sort_weights_ascending_action = QtWidgets.QAction(self)
+        self._sort_weights_ascending_action.setText("Sort by weights (ascending)")
+        self._sort_weights_ascending_action.triggered.connect(self._sort_ascending_on_triggered)
+
+        self._sort_weights_descending_action = QtWidgets.QAction(self)
+        self._sort_weights_descending_action.setText("Sort by weights (descending)")
+        self._sort_weights_descending_action.triggered.connect(self._sort_descending_on_triggered)
+
+        self._header_context_menu = QtWidgets.QMenu(parent=self)
+        self._header_context_menu.addAction(self._display_inf_action)
+        self._header_context_menu.addSeparator()
+        self._header_context_menu.addAction(self._lock_inf_action)
+        self._header_context_menu.addAction(self._unlock_inf_action)
+        self._header_context_menu.addSeparator()
+        self._header_context_menu.addAction(self._select_inf_verts_action)
+        self._header_context_menu.addAction(self._select_inf_action)
+        self._header_context_menu.addSeparator()
+        self._header_context_menu.addAction(self._sort_weights_ascending_action)
+        self._header_context_menu.addAction(self._sort_weights_descending_action)
+
+    def _sort_ascending_on_triggered(self):
         raise NotImplementedError
 
-    def sort_descending_on_triggered(self):
+    def _sort_descending_on_triggered(self):
         raise NotImplementedError
 
     def select_items_by_inf(self):
@@ -104,11 +114,11 @@ class AbstractWeightsView(QtWidgets.QTableView):
         Shows tooltip when table is empty.
         """
         if self.model().rowCount(self) == 0:
-            if self.editor_inst.obj is None:
+            if not self._editor_inst.obj.is_valid():
                 msg = ("Select a skinned object and push\n"
                        "the button on top edit its weights.")
                 img = utils.load_pixmap("table_view/select_skin.png")
-            elif self.editor_inst.skin_cluster is None:
+            elif not self._editor_inst.obj.has_valid_skin():
                 msg = "Unable to detect a skinCluster on this object."
                 img = utils.load_pixmap("table_view/sad.png")
             else:
@@ -129,17 +139,14 @@ class AbstractWeightsView(QtWidgets.QTableView):
             rect.setTop(self.height() / 2)
 
             qp.setPen(QtGui.QColor(255, 255, 255))
-            qp.setFont(self.font)
+            qp.setFont(self._font)
             qp.drawText(rect, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop, msg)
             qp.end()
         
         QtWidgets.QTableView.paintEvent(self, paint_event)
 
     def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Space:
-            self.key_pressed.emit(event)
-        else:
-            QtWidgets.QWidget.keyPressEvent(self, event)
+        self.key_pressed.emit(event)
     
     def mousePressEvent(self, event):
         QtWidgets.QTableView.mousePressEvent(self, event)
@@ -147,35 +154,52 @@ class AbstractWeightsView(QtWidgets.QTableView):
         # Begins edit on current cell.
         if event.button() == QtCore.Qt.MouseButton.RightButton:
             # Save this prior to any changes.
-            self.old_skin_data = copy.deepcopy(self.editor_inst.skin_data)
+            self._old_skin_data = self._editor_inst.obj.skin_data.copy()
             self.edit(self.currentIndex())
 
-    def header_on_context_trigger(self, point):
-        self.header_context_menu.exec_(self.mapToGlobal(point))
+    def _get_last_clicked_inf(self):
+        return self.table_model.display_infs[self._header.last_index]
 
-    def header_on_left_clicked(self, index):
+    def _header_on_context_trigger(self, point):
+        self._header_context_menu.exec_(self.mapToGlobal(point))
+
+    def _header_on_left_clicked(self, index):
         self.selectColumn(index)
 
-    def header_on_middle_clicked(self, index):
+    def _header_on_middle_clicked(self, index):
         inf = self.table_model.display_infs[index]
         self.header_middle_clicked.emit(inf)
 
-    def display_inf_on_triggered(self):
-        inf = self.table_model.display_infs[self.header.last_index]
-        self.display_inf_triggered.emit(inf)
+    def _display_inf_on_triggered(self):
+        self.display_inf_triggered.emit(self._get_last_clicked_inf())
 
-    def select_inf_verts_on_triggered(self):
-        inf = self.table_model.display_infs[self.header.last_index]
-        self.select_inf_verts_triggered.emit(inf)
+    def _lock_inf_on_triggered(self):
+        self._editor_inst.toggle_inf_locks([self._get_last_clicked_inf()], True)
 
-    def select_inf_on_triggered(self):
-        inf = self.table_model.display_infs[self.header.last_index]
+    def _unlock_inf_on_triggered(self):
+        self._editor_inst.toggle_inf_locks([self._get_last_clicked_inf()], False)
+
+    def _select_inf_verts_on_triggered(self):
+        self.select_inf_verts_triggered.emit(self._get_last_clicked_inf())
+
+    def _select_inf_on_triggered(self):
+        inf = self._get_last_clicked_inf()
         if cmds.objExists(inf):
             cmds.select(inf)
 
-    def set_model(self, abstract_model):
+    def _set_model(self, abstract_model):
         self.table_model = abstract_model
         self.setModel(self.table_model)
+
+    def _reset_color_headers(self):
+        self.table_model.header_colors = []
+
+    def _get_selected_indexes(self):
+        return [
+            index
+            for index in self.selectedIndexes()
+            if index.isValid()
+        ]
 
     def display_infs(self):
         return self.table_model.display_infs
@@ -192,13 +216,10 @@ class AbstractWeightsView(QtWidgets.QTableView):
     def emit_header_data_changed(self):
         inf_count = len(self.table_model.display_infs)
 
-        if self.orientation == QtCore.Qt.Horizontal:
+        if self._orientation == QtCore.Qt.Horizontal:
             self.table_model.headerDataChanged.emit(QtCore.Qt.Horizontal, 0, inf_count)
         else:
             self.table_model.headerDataChanged.emit(QtCore.Qt.Vertical, 0, inf_count)
-
-    def reset_color_headers(self):
-        self.table_model.header_colors = []
 
     def color_headers(self, count):
         """
@@ -206,24 +227,17 @@ class AbstractWeightsView(QtWidgets.QTableView):
         An active influence will be colored as blue.
         When using the Softimage theme, each header will be the color if its influence.
         """
-        self.reset_color_headers()
+        self._reset_color_headers()
 
-        if self.editor_inst.color_style == ColorTheme.Softimage:
+        if self._editor_inst.color_style == ColorTheme.Softimage:
             for index in range(count):
                 header_name = self.table_model.get_inf(index)
-                rgb = self.editor_inst.inf_colors.get(header_name)
+                rgb = self._editor_inst.obj.inf_colors.get(header_name)
 
                 color = None
                 if rgb is not None:
                     color = QtGui.QColor.fromRgbF(*rgb)
                 self.table_model.header_colors.append(color)
-
-    def get_selected_indexes(self):
-        return [
-            index
-            for index in self.selectedIndexes()
-            if index.isValid()
-        ]
 
     def toggle_long_names(self, hidden):
         self.begin_update()
@@ -239,18 +253,18 @@ class AbstractModel(QtCore.QAbstractTableModel):
     def __init__(self, editor_inst, parent=None):
         super(AbstractModel, self).__init__(parent)
         
-        self.editor_inst = editor_inst
+        self._editor_inst = editor_inst
+        self._locked_text = QtGui.QColor(100, 100, 100)
+        self._full_weight_text = QtGui.QColor(QtCore.Qt.white)
+        self._low_weight_text = QtGui.QColor(QtCore.Qt.yellow)
+        self._zero_weight_text = QtGui.QColor(255, 50, 50)
+        self._header_locked_text = QtGui.QColor(QtCore.Qt.black)
+        self._header_active_inf_back_color = QtGui.QColor(0, 120, 180)
+
         self.header_colors = []
         self.display_infs = []
         self.input_value = None  # Used to properly set multiple cells
         self.hide_long_names = True
-
-        self.locked_text = QtGui.QColor(100, 100, 100)
-        self.full_weight_text = QtGui.QColor(QtCore.Qt.white)
-        self.low_weight_text = QtGui.QColor(QtCore.Qt.yellow)
-        self.zero_weight_text = QtGui.QColor(255, 50, 50)
-        self.header_locked_text = QtGui.QColor(QtCore.Qt.black)
-        self.header_active_inf_back_color = QtGui.QColor(0, 120, 180)
 
     def rowCount(self, parent):
         raise NotImplementedError
