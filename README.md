@@ -31,9 +31,12 @@ _Interface using the list view_
 - Temporary hotkeys that can be re-assigned
 
 https://user-images.githubusercontent.com/14979497/148168582-5fb3e761-e70d-4904-be8e-a12da03faf3a.mp4
-<br>
 
 _Exporting weights then importing them onto a different object via world positions_
+
+https://user-images.githubusercontent.com/14979497/148170835-fc301bd2-1dce-4f23-9632-02eb80eaa298.mp4
+
+_Importing weights onto selected vertices_
 
 ## Supported versions
 
