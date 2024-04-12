@@ -6,29 +6,44 @@
 A skin weights component editor inspired from Softimage.
 </p>
 
-# Interface
+# 🖥️ Interface
 
-![weightsEditorTable](https://user-images.githubusercontent.com/14979497/148098205-d37b2533-c589-45fd-a84b-643963f1704c.png)<br>
-_Interface using the table view_
+![weightsEditorList](https://github.com/theRussetPotato/weights_editor/assets/14979497/0882ec06-8295-4740-a2c8-1cbc4449e507)<br>
+_The interface using the list view with averaged values_
 
 <br>
 
-![weightsEditorList](https://user-images.githubusercontent.com/14979497/148098259-c2435bb9-cfff-42a7-8937-802cba182626.png)<br>
-_Interface using the list view_
+![weightsEditorTable](https://github.com/theRussetPotato/weights_editor/assets/14979497/f028aec2-2dad-4c8a-9be9-86664d2d6bea)<br>
+_The interface using the table view_
 
-## Features
+## ⭐ Features
 
 - Editable table and list views to quickly set weights with selected components (verts, edges, faces)
 - Buttons with preset values to add, subtract, scale, or set weights (buttons are customizable)
-- Quickly lock or unlock selected influences by pressing space
+- Quickly lock or unlock selected influences from the list/table/influence views by pressing space
 - Influence list on the side
+  - Select the influence
+  - Select all vertexes weighted to the influence
 - Displays weights in different color themes
-- Weight utilities to prune, smooth, mirror, and copy/paste vertex weights
-- Weights can be exported to a file
-- Weights can be imported via point order, or by world space positions of the mesh's vertices. Weights can also import onto selected vertices, so you can maintain existing skin weights outside of the selection.
-- Button to flood full weights to the vertex's closest influence for quick blocking
+  - 3DsMax style (from blue to red)
+  - Maya style (from red to white)
+  - Softimage style (displays all influences at once)
+  - Maximum influences (colors vertexes red if they are over a specific influence count)
+- Weight utilities
+  - Prune weights under a specified value
+  - Prune weights over a specified influence count
+  - Smooth weights using the vert's influences
+  - Smooth weights with the verts neighboring influences (using Brave Rabbit's plugin)
+  - Mirror selected vertexes or all weights
+  - Copy & paste vertex weights
+- Skin weights exporter, which include dual-quaternion weights
+- Skin weights importer
+  - Import via point order
+  - Import via world space positions from the mesh's vertices
+  - Weights can also import onto selected vertices only, so you can maintain existing skin weights outside of the selection.
+- Button to flood full weights to the vertex's closest influence to begin quick blocking
 - All operations support undo/redo
-- Temporary hotkeys that can be re-assigned
+- Most operations are assigned to hotkeys, which can be re-assigned
 
 https://user-images.githubusercontent.com/14979497/148168582-5fb3e761-e70d-4904-be8e-a12da03faf3a.mp4
 
@@ -38,7 +53,7 @@ https://user-images.githubusercontent.com/14979497/148170835-fc301bd2-1dce-4f23-
 
 _Importing weights onto selected vertices_
 
-## Supported versions
+## ❤️ Supported Versions
 
 In short, Maya 2017 and above is supported.<br>
 Release v2.0.0 was heavily used in production in Maya 2018 Extension 4.<br>
@@ -46,7 +61,7 @@ It was also rewritten to work with Python 3 so it will run on Maya 2022.<br>
 
 For earlier versions of Maya using PySide (Qt4), only release v1.0.0 will work as future releases will only support PySide2 (Qt5).
 
-## Installation
+## ➕ Installation
 
 - Open up a session of Maya<br>
 - Drag and drop the installer file `DRAG_AND_DROP_INSTALLER.py` into the viewport. Please do not move this file, it uses relative paths to copy over the files.<br>
@@ -61,7 +76,7 @@ from weights_editor_tool import weights_editor
 weights_editor.run()
 ```
 
-## Dependencies
+## 👪 Dependencies
 
 This tool doesn't require any extra libraries and uses all native modules that ship with Maya.
 
@@ -71,7 +86,7 @@ By default this feature will be disabled if the plugin is not loaded.
 The plugin is `smoothSkinClusterWeight` by <a href='http://www.braverabbit.com'>Ingo Clemens</a>.<br>
 It's fantastic, free, and you can download it <a href='https://www.braverabbit.com/braverabbit/tools/brsmoothweights/'>here</a>.
 
-## Reporting a bug
+## 🐛 Reporting a Bug
 
 If you run into any errors during installation or using the tool itself, then please <a href='https://github.com/theRussetPotato/weights_editor/issues'>create a new issue</a> from this repository.
 
@@ -83,14 +98,13 @@ Please include the following:
 * If possible, include a screenshot showing the error.
 * Include any steps that will reproduce the error.
 
-## Requests and new features
+## ✉️ Requests and New Features
 
 If you have any ideas to improve this tool then feel free to <a href='https://github.com/theRussetPotato/weights_editor/issues'>send any suggestions</a>!
 
-## Credits and thanks
+## 🙏 Credits and Thanks
 
 Enrique Caballero and John Lienard for pushing me to make this.<br>
 Ingo Clemens (Brave Rabbit) for his <a href='https://www.braverabbit.com/braverabbit/tools/brsmoothweights/'>smoothSkinClusterWeight plugin</a>.<br>
-Tyler Thornock for his <a href='http://www.charactersetup.com/tutorial_skinWeights.html'>tutorial</a> on a faster approach to get/set skin weights.<br>
 
-### Happy skinning :)
+### Happy skinning 😍🎨🖌️
