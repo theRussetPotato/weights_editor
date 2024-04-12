@@ -75,15 +75,30 @@ class SkinnedObj:
                 return objs[0]
 
     @staticmethod
-    def _to_mfn_mesh(mesh):
+    def _get_dag_path(obj):
         msel_list = om2.MSelectionList()
-        msel_list.add(mesh)
-        mdag_path = msel_list.getDagPath(0)
-        return om2.MFnMesh(mdag_path)
+        msel_list.add(obj)
+        return msel_list.getDagPath(0)
+
+    @classmethod
+    def _to_mfn_mesh(cls, mesh):
+        dag_path = cls._get_dag_path(mesh)
+        return om2.MFnMesh(dag_path)
+
+    @classmethod
+    def _to_mfn_nurbs_curve(cls, curve):
+        dag_path = cls._get_dag_path(curve)
+        return om2.MFnNurbsCurve(dag_path)
 
     def _get_world_points(self, space=om2.MSpace.kWorld):
-        mfn_mesh = self._to_mfn_mesh(self.name)
-        return mfn_mesh.getPoints(space)
+        if cmds.listRelatives(self.name, shapes=True, type="mesh"):
+            mfn_mesh = self._to_mfn_mesh(self.name)
+            return mfn_mesh.getPoints(space)
+        elif cmds.listRelatives(self.name, shapes=True, type="nurbsCurve"):
+            mfn_nurbs_curve = self._to_mfn_nurbs_curve(self.name)
+            return mfn_nurbs_curve.cvPositions(space)
+        else:
+            raise NotImplementedError("This object's type is not supported: {0}".format(self.name))
 
     def _map_to_closest_vertexes(self, verts_data, vert_filter=[]):
         weights_data = {}
