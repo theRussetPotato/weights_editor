@@ -49,7 +49,7 @@ from weights_editor_tool.widgets import about_dialog
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "2.3.0"
+    version = "2.3.1"
     instance = None
     cb_selection_changed = None
     shortcuts = []
@@ -97,7 +97,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             hotkey_module.Hotkey.create_from_default(Hotkeys.ShowInfList, partial(self._toggle_check_button, self._show_inf_button)),
             hotkey_module.Hotkey.create_from_default(Hotkeys.ShowInfColors, partial(self._toggle_check_button, self._hide_colors_button)),
             hotkey_module.Hotkey.create_from_default(Hotkeys.MirrorAll, self._mirror_all_skin_on_clicked),
-            hotkey_module.Hotkey.create_from_default(Hotkeys.Prune, self._prune_on_clicked),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.Prune, self._prune_by_value_on_clicked),
+            hotkey_module.Hotkey.create_from_default(Hotkeys.PruneMaxInfs, self._prune_max_infs_on_clicked),
             hotkey_module.Hotkey.create_from_default(Hotkeys.RunSmooth, partial(self._run_smooth, SmoothOperation.Normal)),
             hotkey_module.Hotkey.create_from_default(Hotkeys.RunSmoothAllInfs, partial(self._run_smooth, SmoothOperation.AllInfluences)),
             hotkey_module.Hotkey.create_from_default(Hotkeys.Undo, self._undo_on_clicked),
@@ -287,6 +288,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._softimage_color_action.triggered.connect(partial(self._switch_color_on_clicked, ColorTheme.Softimage))
         self._color_sub_menu.addAction(self._softimage_color_action)
 
+        self._max_infs_color_action = QtWidgets.QAction("Maximum influences theme", self)
+        self._max_infs_color_action.setCheckable(True)
+        self._max_infs_color_action.triggered.connect(partial(self._switch_color_on_clicked, ColorTheme.MaximumInfluences))
+        self._color_sub_menu.addAction(self._max_infs_color_action)
+
         self._hide_long_names_action = QtWidgets.QAction("Hide long names", self)
         self._hide_long_names_action.setCheckable(True)
         self._hide_long_names_action.setChecked(True)
@@ -386,20 +392,33 @@ class WeightsEditor(QtWidgets.QMainWindow):
              QtCore.Qt.Horizontal,
              margins=[5, 5, 5, 5])
 
-        self._prune_spinbox = QtWidgets.QDoubleSpinBox(value=0.1, parent=self._central_widget)
-        self._prune_spinbox.setToolTip("Prune any influence below this value.")
-        self._prune_spinbox.setMinimumWidth(60)
-        self._prune_spinbox.setDecimals(3)
-        self._prune_spinbox.setMinimum(0.001)
-        self._prune_spinbox.setSingleStep(0.01)
+        self._prune_by_value_spinbox = QtWidgets.QDoubleSpinBox(value=0.1, parent=self._central_widget)
+        self._prune_by_value_spinbox.setToolTip("Prune any influence below this value.")
+        self._prune_by_value_spinbox.setMinimumWidth(60)
+        self._prune_by_value_spinbox.setDecimals(3)
+        self._prune_by_value_spinbox.setMinimum(0.001)
+        self._prune_by_value_spinbox.setSingleStep(0.01)
 
-        self._prune_button = self._create_button(
+        self._prune_by_value_button = self._create_button(
             "Prune", "interface/prune.png",
-            click_event=self._prune_on_clicked)
+            click_event=self._prune_by_value_on_clicked)
+
+        self._prune_max_infs_spinbox = QtWidgets.QSpinBox(value=4, parent=self._central_widget)
+        self._prune_max_infs_spinbox.setToolTip("Prune selected vertexes to this number of influences.")
+        self._prune_max_infs_spinbox.setMinimumWidth(60)
+        self._prune_max_infs_spinbox.setMinimum(1)
+        self._prune_max_infs_spinbox.editingFinished.connect(self._prune_max_infs_on_editing_finished)
+
+        self._prune_max_infs_button = self._create_button(
+            "Prune max infs", "interface/prune.png",
+            click_event=self._prune_max_infs_on_clicked)
 
         self._prune_layout = utils.wrap_layout(
-            [self._prune_spinbox,
-             self._prune_button,
+            [self._prune_by_value_spinbox,
+             self._prune_by_value_button,
+             15,
+             self._prune_max_infs_spinbox,
+             self._prune_max_infs_button,
              "stretch"],
             QtCore.Qt.Horizontal)
 
@@ -504,6 +523,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         self._export_import_layout = utils.wrap_layout(
             [self._export_weights_button,
+             15,
              self._import_weights_button,
              self._import_weights_world_button,
              "stretch"],
@@ -837,7 +857,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             (self._hide_colors_button, "Hides colors that visualize the weight values.<br><br>"
                                       "Enable this to help speed up performance"),
             (self._mirror_all_skin_button, "Mirror all weights"),
-            (self._prune_button, "Prunes selected vertexes in the viewport that are below this value."),
+            (self._prune_by_value_button, "Prunes selected vertexes in the viewport that are below this value."),
+            (self._prune_max_infs_button, "Prunes selected vertexes in the viewport to this number of influences."),
             (self._smooth_button, "Selected vertexes in the viewport will smooth with only influences that are already assigned to it."),
             (self._smooth_br_button, "Selected vertexes in the viewport will smooth with all influences available."),
             (self._undo_button, "Undo last action"),
@@ -901,7 +922,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "height": self.height(),
             "inf_dock_widget.area": int(self.dockWidgetArea(self._inf_dock_widget)),
             "color_style": self.color_style,
-            "prune_spinbox.value": self._prune_spinbox.value(),
+            "prune_spinbox.value": self._prune_by_value_spinbox.value(),
+            "prune_max_infs_spinbox.value": self._prune_max_infs_spinbox.value(),
             "smooth_strength_spinbox.value": self._smooth_strength_spinbox.value(),
             "mirror_mode.currentIndex": self._mirror_mode.currentIndex(),
             "mirror_surface.currentIndex": self._mirror_surface.currentIndex(),
@@ -967,7 +989,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
         
         if "color_style" in data:
             self.color_style = data["color_style"]
-            for i, widget in enumerate([self._max_color_action, self._maya_color_action, self._softimage_color_action]):
+            color_actions = [self._max_color_action, self._maya_color_action, self._softimage_color_action, self._max_infs_color_action]
+            for i, widget in enumerate(color_actions):
                 widget.setChecked(i == self.color_style)
 
         if "mirror_mode.currentIndex" in data:
@@ -983,7 +1006,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             self._weights_table.table_model.max_display_count = data["weights_table.max_display_count"]
 
         spinboxes = {
-            "prune_spinbox.value": self._prune_spinbox,
+            "prune_spinbox.value": self._prune_by_value_spinbox,
+            "prune_max_infs_spinbox.value": self._prune_max_infs_spinbox,
             "smooth_strength_spinbox.value": self._smooth_strength_spinbox,
             "add_spinbox.value": self._add_spinbox,
             "scale_spinbox.value": self._scale_spinbox,
@@ -1526,7 +1550,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
         """
         Sets active influence to color with.
         """
-        if self.color_style == ColorTheme.Softimage:
+        invalid_styles = [ColorTheme.Softimage, ColorTheme.MaximumInfluences]
+        if self.color_style in invalid_styles:
             return
 
         self.inf_list.select_item(inf)
@@ -1561,19 +1586,17 @@ class WeightsEditor(QtWidgets.QMainWindow):
         
         self.obj.select_inf_vertexes(infs)
     
-    def _prune_on_clicked(self):
+    def _prune_by_value_on_clicked(self):
         if not self.obj.is_valid():
             return
         
         old_skin_data = self.obj.skin_data.copy()
-
         weights_view = self.get_active_weights_view()
         table_selection = weights_view.save_table_selection()
-        
-        sel_vert_indexes = utils.extract_indexes(
-            utils.get_vert_indexes(self.obj.name))
+        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(self.obj.name))
 
-        if not self.obj.prune_weights(self._prune_spinbox.value()):
+        result = self.obj.prune_weights(self._prune_by_value_spinbox.value())
+        if not result:
             return
         
         self._recollect_table_data(update_verts=False)
@@ -1590,6 +1613,35 @@ class WeightsEditor(QtWidgets.QMainWindow):
             sel_vert_indexes,
             table_selection,
             skip_first_redo=True)
+
+    def _prune_max_infs_on_editing_finished(self):
+        if self.color_style == ColorTheme.MaximumInfluences:
+            self._switch_color_on_clicked(ColorTheme.MaximumInfluences)
+
+    def _prune_max_infs_on_clicked(self):
+        if not self.obj.is_valid():
+            return
+
+        old_skin_data = self.obj.skin_data.copy()
+        weights_view = self.get_active_weights_view()
+        table_selection = weights_view.save_table_selection()
+        sel_vert_indexes = utils.extract_indexes(utils.get_vert_indexes(self.obj.name))
+
+        result = self.obj.prune_max_infs(self._prune_max_infs_spinbox.value(), vert_filter=sel_vert_indexes)
+        if not result:
+            return
+
+        new_skin_data = self.obj.skin_data.copy()
+
+        self.add_undo_command(
+            "Prune maximum influences",
+            self.obj.name,
+            old_skin_data,
+            new_skin_data,
+            sel_vert_indexes,
+            table_selection)
+
+        self._recollect_table_data(update_skin_data=False, update_verts=False)
 
     def _mirror_skin_on_clicked(self):
         self._mirror_weights(True)
@@ -1741,6 +1793,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._max_color_action.setChecked(index == ColorTheme.Max)
         self._maya_color_action.setChecked(index == ColorTheme.Maya)
         self._softimage_color_action.setChecked(index == ColorTheme.Softimage)
+        self._max_infs_color_action.setChecked(index == ColorTheme.MaximumInfluences)
         self._switch_color_style(index)
 
     def _select_inf_verts_on_triggered(self, inf):
@@ -1901,7 +1954,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._recollect_table_data(update_skin_data=False, update_verts=False)
 
     def _display_inf_on_triggered(self, inf):
-        if self.color_style == ColorTheme.Softimage:
+        invalid_styles = [ColorTheme.Softimage, ColorTheme.MaximumInfluences]
+        if self.color_style in invalid_styles:
             return
 
         self._set_color_inf(inf)
@@ -1988,6 +2042,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
             if self.color_style == ColorTheme.Softimage:
                 self._set_color_inf(None)
                 self.obj.display_multi_color_influence(vert_filter=vert_filter)
+            elif self.color_style == ColorTheme.MaximumInfluences:
+                self._set_color_inf(None)
+                max_inf_count = self._prune_max_infs_spinbox.value()
+                self.obj.display_max_influences(max_inf_count, vert_filter=vert_filter)
             else:
                 if self.color_inf is not None:
                     self.obj.display_influence(

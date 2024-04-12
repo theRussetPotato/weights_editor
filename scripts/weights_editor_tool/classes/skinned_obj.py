@@ -247,10 +247,35 @@ class SkinnedObj:
         """
         flatten_list = utils.get_vert_indexes(self.name)
         if not flatten_list:
-            OpenMaya.MGlobal.displayWarning("No vertexes are selected.")
+            OpenMaya.MGlobal.displayError("No vertexes are selected.")
             return False
 
         cmds.skinPercent(self.skin_cluster, flatten_list, prw=value, nrm=True)
+
+        return True
+
+    def prune_max_infs(self, max_inf_count, vert_filter=[]):
+        if not vert_filter:
+            OpenMaya.MGlobal.displayError("No vertexes are selected.")
+            return False
+
+        for vert_index in self.skin_data:
+            if vert_filter and vert_index not in vert_filter:
+                continue
+
+            sorted_infs = [
+                inf for inf, value in sorted(self.skin_data[vert_index]["weights"].items(), key=lambda item: item[1])]
+
+            for inf in sorted_infs:
+                infs_count = len(self.skin_data[vert_index]["weights"])
+                if infs_count <= max_inf_count:
+                    break
+
+                locked = cmds.getAttr("{0}.lockInfluenceWeights".format(inf))
+                if locked:
+                    continue
+
+                self.skin_data.update_weight_value(vert_index, inf, 0)
 
         return True
 
@@ -355,6 +380,36 @@ class SkinnedObj:
                 final_color[0] += inf_color[0] * weight
                 final_color[1] += inf_color[1] * weight
                 final_color[2] += inf_color[2] * weight
+
+            vert_colors.append(final_color)
+            vert_indexes.append(vert_index)
+
+        utils.apply_vert_colors(self.name, vert_colors, vert_indexes)
+
+    def display_max_influences(self, max_inf_count, vert_filter=[]):
+        """
+        Displays verts that are over the supplied maximum inflluence count.
+
+        Args:
+            max_inf_count(int): Color the vertex if it's over this number.
+            vert_filter(int[]): List of vertex indexes to only operate on.
+
+        Returns:
+            A dictionary of {inf_name:[r, g, b]...}
+        """
+        vert_colors = []
+        vert_indexes = []
+
+        for vert_index in self.skin_data:
+            if vert_filter and vert_index not in vert_filter:
+                continue
+
+            inf_count = len(self.skin_data[vert_index]["weights"])
+
+            if inf_count > max_inf_count:  # Over the count.
+                final_color = [1, 0, 0]
+            else:
+                final_color = [0, 0, 0]  # Under the count.
 
             vert_colors.append(final_color)
             vert_indexes.append(vert_index)

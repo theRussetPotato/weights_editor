@@ -16,6 +16,7 @@ class Hotkey:
         Hotkeys.ShowInfColors: {"key": QtCore.Qt.Key_6, "ctrl": True},
         Hotkeys.MirrorAll: {"key": QtCore.Qt.Key_M, "ctrl": True},
         Hotkeys.Prune: {"key": QtCore.Qt.Key_P, "ctrl": True},
+        Hotkeys.PruneMaxInfs: {"key": QtCore.Qt.Key_P, "ctrl": True, "shift": True},
         Hotkeys.RunSmooth: {"key": QtCore.Qt.Key_S, "ctrl": True, "shift": True},
         Hotkeys.RunSmoothAllInfs: {"key": QtCore.Qt.Key_D, "ctrl": True, "shift": True},
         Hotkeys.Undo: {"key": QtCore.Qt.Key_Z, "ctrl": True, "shift": True},

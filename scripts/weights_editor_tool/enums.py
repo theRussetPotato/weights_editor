@@ -3,6 +3,7 @@ class ColorTheme:
     Max = 0
     Maya = 1
     Softimage = 2
+    MaximumInfluences = 3
 
 
 class WeightOperation:
@@ -29,6 +30,7 @@ class Hotkeys:
     ShowInfColors = "Show inf colors"
     MirrorAll = "Mirror all"
     Prune = "Prune"
+    PruneMaxInfs = "Prune max infs"
     RunSmooth = "Run smooth (vert infs)"
     RunSmoothAllInfs = "Run smooth (all infs)"
     Undo = "Undo"
