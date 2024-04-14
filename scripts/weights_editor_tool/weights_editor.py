@@ -47,7 +47,7 @@ from weights_editor_tool.widgets import presets_dialog
 from weights_editor_tool.widgets import about_dialog
 
 
-class WeightsEditor(QtWidgets.QMainWindow):
+class WeightsEditor(QtWidgets.QWidget):
 
     version = "2.3.2"
     instance = None
@@ -58,7 +58,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if parent is None:
             parent = utils.get_maya_window()
 
-        QtWidgets.QMainWindow.__init__(self, parent=parent)
+        QtWidgets.QWidget.__init__(self, parent=parent)
 
         self._del_prev_instance()
         self.__class__.instance = self
@@ -219,6 +219,34 @@ class WeightsEditor(QtWidgets.QMainWindow):
                 font-weight: bold;
                 color: white;
             }}
+            
+            #smoothButton {{
+                background-color: rgb(110, 85, 110);
+            }}
+            
+            #pruneButton {{
+                background-color: rgb(110, 110, 85);
+            }}
+            
+            #mirrorButton {{
+                background-color: rgb(85, 110, 110);
+            }}
+            
+            #copyVertButton {{
+                background-color: rgb(110, 95, 85);
+            }}
+            
+            #exportButton {{
+                background-color: rgb(110, 85, 85);
+            }}
+            
+            #importButton {{
+                background-color: rgb(85, 110, 85);
+            }}
+            
+            #floodButton {{
+                background-color: rgb(85, 95, 110);
+            }}
         """.format(
             presetBg=win_color.lighter(120).name(),
             winColor=win_color.lighter(110).name(),
@@ -234,7 +262,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
     #
     # MENU BAR
     #
-        self._menu_bar = self.menuBar()
+        self._menu_bar = QtWidgets.QMenuBar(parent=self)
 
         self._options_menu = QtWidgets.QMenu("&Tool settings", parent=self)
         self._menu_bar.addMenu(self._options_menu)
@@ -304,18 +332,20 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._delete_skin_on_export_all_action.setChecked(True)
         self._options_menu.addAction(self._delete_skin_on_export_all_action)
 
-        self._visibility_separator = QtWidgets.QAction("Visibility settings", self)
-        self._visibility_separator.setSeparator(True)
-        self._options_menu.addAction(self._visibility_separator)
+        self._prefs_menu = self._menu_bar.addMenu("&Preferences")
+
+        self._enable_hotkeys_action = QtWidgets.QAction("Enable hotkeys", self)
+        self._enable_hotkeys_action.setCheckable(True)
+        self._enable_hotkeys_action.setChecked(True)
+        self._enable_hotkeys_action.toggled.connect(self._hotkeys_on_toggled)
+        self._prefs_menu.addAction(self._enable_hotkeys_action)
 
         self._launch_hotkeys_action = QtWidgets.QAction("Edit hotkeys", self)
         self._launch_hotkeys_action.triggered.connect(self._launch_hotkeys_on_clicked)
+        self._prefs_menu.addAction(self._launch_hotkeys_action)
 
         self._launch_presets_action = QtWidgets.QAction("Edit preset buttons", self)
         self._launch_presets_action.triggered.connect(self._launch_presets_on_clicked)
-
-        self._prefs_menu = self._menu_bar.addMenu("&Preferences")
-        self._prefs_menu.addAction(self._launch_hotkeys_action)
         self._prefs_menu.addAction(self._launch_presets_action)
 
         self._about_action = QtWidgets.QAction("About this tool", self)
@@ -335,9 +365,6 @@ class WeightsEditor(QtWidgets.QMainWindow):
     #
     # CENTRAL WIDGET
     #
-
-        self._central_widget = QtWidgets.QWidget(parent=self)
-        self._central_widget.setObjectName("weightsEditorCentralWidget")
 
         self._toggle_view_button = self._create_button("TABLE", "interface/table.png")
         self._show_utilities_button = self._create_button("UTL", "interface/utils.png")
@@ -372,9 +399,9 @@ class WeightsEditor(QtWidgets.QMainWindow):
             QtCore.Qt.Horizontal,
             spacing=5)
 
-        self._pick_obj_label = QtWidgets.QLabel("Object:", parent=self._central_widget)
+        self._pick_obj_label = QtWidgets.QLabel("Object:")
 
-        self._pick_obj_button = QtWidgets.QPushButton("", parent=self._central_widget)
+        self._pick_obj_button = QtWidgets.QPushButton()
         self._pick_obj_button.setToolTip("Switches to selected mesh for editing.")
         self._pick_obj_button.clicked.connect(self._pick_selected_obj)
 
@@ -397,7 +424,28 @@ class WeightsEditor(QtWidgets.QMainWindow):
              QtCore.Qt.Horizontal,
              margins=[5, 5, 5, 5])
 
-        self._prune_by_value_spinbox = QtWidgets.QDoubleSpinBox(value=0.1, parent=self._central_widget)
+        self._smooth_strength_spinbox = QtWidgets.QDoubleSpinBox(value=1)
+        self._smooth_strength_spinbox.setToolTip("Smooth's strength.")
+        self._smooth_strength_spinbox.setMinimumWidth(60)
+        self._smooth_strength_spinbox.setDecimals(2)
+        self._smooth_strength_spinbox.setMinimum(0)
+        self._smooth_strength_spinbox.setMaximum(1)
+        self._smooth_strength_spinbox.setSingleStep(0.1)
+
+        self._smooth_button = self._create_button(
+            "Smooth", "interface/smooth.png",
+            click_event=partial(self._run_smooth, SmoothOperation.Normal))
+        self._smooth_button.setObjectName("smoothButton")
+
+        self._smooth_br_button = self._create_button(
+            "Smooth (All Infs)", "interface/smooth.png",
+            click_event=partial(self._run_smooth, SmoothOperation.AllInfluences))
+        self._smooth_br_button.setObjectName("smoothButton")
+
+        if not hasattr(cmds, "brSmoothWeightsContext"):
+            self._smooth_br_button.setEnabled(False)
+
+        self._prune_by_value_spinbox = QtWidgets.QDoubleSpinBox(value=0.1)
         self._prune_by_value_spinbox.setToolTip("Prune any influence below this value.")
         self._prune_by_value_spinbox.setMinimumWidth(60)
         self._prune_by_value_spinbox.setDecimals(3)
@@ -407,19 +455,25 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._prune_by_value_button = self._create_button(
             "Prune", "interface/prune.png",
             click_event=self._prune_by_value_on_clicked)
+        self._prune_by_value_button.setObjectName("pruneButton")
 
-        self._prune_max_infs_spinbox = QtWidgets.QSpinBox(value=4, parent=self._central_widget)
+        self._prune_max_infs_spinbox = QtWidgets.QSpinBox(value=4)
         self._prune_max_infs_spinbox.setToolTip("Prune selected vertexes to this number of influences.")
         self._prune_max_infs_spinbox.setMinimumWidth(60)
         self._prune_max_infs_spinbox.setMinimum(1)
         self._prune_max_infs_spinbox.editingFinished.connect(self._prune_max_infs_on_editing_finished)
 
         self._prune_max_infs_button = self._create_button(
-            "Prune max infs", "interface/prune.png",
+            "Prune Max Infs", "interface/prune.png",
             click_event=self._prune_max_infs_on_clicked)
+        self._prune_max_infs_button.setObjectName("pruneButton")
 
         self._prune_layout = utils.wrap_layout(
-            [self._prune_by_value_spinbox,
+            [self._smooth_strength_spinbox,
+             self._smooth_button,
+             self._smooth_br_button,
+             15,
+             self._prune_by_value_spinbox,
              self._prune_by_value_button,
              15,
              self._prune_max_infs_spinbox,
@@ -427,177 +481,144 @@ class WeightsEditor(QtWidgets.QMainWindow):
              "stretch"],
             QtCore.Qt.Horizontal)
 
-        self._smooth_strength_spinbox = QtWidgets.QDoubleSpinBox(value=1, parent=self._central_widget)
-        self._smooth_strength_spinbox.setToolTip("Smooth's strength.")
-        self._smooth_strength_spinbox.setMinimumWidth(60)
-        self._smooth_strength_spinbox.setDecimals(2)
-        self._smooth_strength_spinbox.setMinimum(0)
-        self._smooth_strength_spinbox.setMaximum(1)
-        self._smooth_strength_spinbox.setSingleStep(0.1)
-
-        self._smooth_button = self._create_button(
-            "Smooth (vert's infs)", "interface/smooth.png",
-            click_event=partial(self._run_smooth, SmoothOperation.Normal))
-
-        self._smooth_br_button = self._create_button(
-            "Smooth (all infs)", "interface/smooth.png",
-            click_event=partial(self._run_smooth, SmoothOperation.AllInfluences))
-
-        if not hasattr(cmds, "brSmoothWeightsContext"):
-            self._smooth_br_button.setEnabled(False)
-
-        self._smooth_layout = utils.wrap_layout(
-            [self._smooth_strength_spinbox,
-             self._smooth_button,
-             self._smooth_br_button,
-             "stretch"],
-            QtCore.Qt.Horizontal)
-
         self._mirror_skin_button = self._create_button(
             "Mirror", "interface/mirror.png",
             tool_tip="Mirror weights on selected vertexes only",
             click_event=self._mirror_skin_on_clicked)
+        self._mirror_skin_button.setObjectName("mirrorButton")
 
         self._mirror_all_skin_button = self._create_button(
-            "Mirror all", "interface/mirror.png",
+            "Mirror All", "interface/mirror.png",
             click_event=self._mirror_all_skin_on_clicked)
+        self._mirror_all_skin_button.setObjectName("mirrorButton")
 
-        self._mirror_mode = QtWidgets.QComboBox(parent=self._central_widget)
+        self._mirror_mode = QtWidgets.QComboBox()
         self._mirror_mode.setToolTip("Mirror axis")
         self._mirror_mode.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self._mirror_mode.setMinimumWidth(35)
         self._mirror_mode.setMaximumWidth(50)
         self._mirror_mode.addItems(["-XY", "XY", "-YZ", "YZ", "-XZ", "XZ"])
 
-        self._mirror_surface = QtWidgets.QComboBox(parent=self._central_widget)
+        self._mirror_surface = QtWidgets.QComboBox()
         self._mirror_surface.setToolTip("Mirror surface association")
         self._mirror_surface.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self._mirror_surface.setMinimumWidth(35)
         self._mirror_surface.setMaximumWidth(100)
         self._mirror_surface.addItems(["Closest Point", "Ray Cast", "Closest Component"])
 
-        self._mirror_inf = QtWidgets.QComboBox(parent=self._central_widget)
+        self._mirror_inf = QtWidgets.QComboBox()
         self._mirror_inf.setToolTip("Mirror influence association")
         self._mirror_inf.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self._mirror_inf.setMinimumWidth(35)
         self._mirror_inf.setMaximumWidth(100)
         self._mirror_inf.addItems(["Label", "Closest Point", "Closest Bone", "Name", "One To One"])
 
+        self._copy_vertex_button = self._create_button(
+            "Copy Vertex", "interface/copy.png",
+            tool_tip="Copy weights on first selected vertex",
+            click_event=self._copy_vertex_on_clicked)
+        self._copy_vertex_button.setObjectName("copyVertButton")
+
+        self._paste_vertex_button = self._create_button(
+            "Paste Vertex", "interface/paste.png",
+            tool_tip="Paste weights on selected vertexes",
+            click_event=self._paste_vertex_on_clicked)
+        self._paste_vertex_button.setObjectName("copyVertButton")
+
         self._mirror_layout = utils.wrap_layout(
-            [self._mirror_skin_button,
-             self._mirror_all_skin_button,
-             self._mirror_mode,
+            [self._mirror_mode,
              self._mirror_surface,
              self._mirror_inf,
+             self._mirror_skin_button,
+             self._mirror_all_skin_button,
+             15,
+             self._copy_vertex_button,
+             self._paste_vertex_button,
              "stretch"],
             QtCore.Qt.Horizontal,
             margins=[0, 0, 0, 0])
 
-        self._copy_vertex_button = self._create_button(
-            "Copy vertex", "interface/copy.png",
-            tool_tip="Copy weights on first selected vertex",
-            click_event=self._copy_vertex_on_clicked)
-
-        self._paste_vertex_button = self._create_button(
-            "Paste vertex", "interface/paste.png",
-            tool_tip="Paste weights on selected vertexes",
-            click_event=self._paste_vertex_on_clicked)
-
-        self._copy_vert_layout = utils.wrap_layout(
-            [self._copy_vertex_button,
-             self._paste_vertex_button,
-             "stretch"],
-            QtCore.Qt.Horizontal)
-
         self._export_weights_button = self._create_button(
-            "Export weights", "interface/export_weights.png",
+            "Export", "interface/export_weights.png",
             tool_tip="Export selected object's skin weights to a file",
             click_event=self._export_weights_on_clicked)
+        self._export_weights_button.setObjectName("exportButton")
 
         self._export_all_weights_button = self._create_button(
-            "Export all weights", "interface/export_weights.png",
+            "Export All", "interface/export_weights.png",
             tool_tip="Export skin weights from all skin clusters in the scene to a folder<br><br>"
                      "Go to `Tool settings` to toggle if skinClusters should be deleted after they export.",
             click_event=self._export_all_weights_on_clicked)
-
-        self._export_layout = utils.wrap_layout(
-            [self._export_weights_button,
-             self._export_all_weights_button,
-             "stretch"],
-            QtCore.Qt.Horizontal)
+        self._export_all_weights_button.setObjectName("exportButton")
 
         self._import_weights_button = self._create_button(
-            "Import weights", "interface/import_weights.png",
+            "Import", "interface/import_weights.png",
             tool_tip="Import skin weights onto the selected object<br><br>"
                      "<b>Topologies from the file must match!</b>",
             click_event=partial(self._import_weights_on_clicked, False))
+        self._import_weights_button.setObjectName("importButton")
 
         self._import_weights_world_button = self._create_button(
-            "Import weights (world pos)", "interface/import_weights.png",
+            "Import (World Pos)", "interface/import_weights.png",
             tool_tip="Import skin weights onto the selected object using world positions from the file<br><br>"
                      "<b>This may be long for dense meshes!</b>",
             click_event=partial(self._import_weights_on_clicked, True))
+        self._import_weights_world_button.setObjectName("importButton")
 
         self._import_all_weights_button = self._create_button(
-            "Import all weights", "interface/import_weights.png",
+            "Import All", "interface/import_weights.png",
             tool_tip="Pick a folder with skin files and try to import them all.<br><br>"
                      "It will search the mesh by name using the skin's file name.",
             click_event=self._import_all_weights_on_clicked)
+        self._import_all_weights_button.setObjectName("importButton")
+
+        self._flood_to_closest_button = self._create_button(
+            "Flood to Closest", "interface/flood.png",
+            tool_tip="Set full weights to the closest joints for easier blocking.",
+            click_event=self._flood_to_closest_on_clicked)
+        self._flood_to_closest_button.setObjectName("floodButton")
 
         self._import_layout = utils.wrap_layout(
-            [self._import_weights_button,
+            [self._export_weights_button,
+             self._export_all_weights_button,
+             15,
+             self._import_weights_button,
              self._import_weights_world_button,
              self._import_all_weights_button,
+             15,
+             self._flood_to_closest_button,
              "stretch"],
             QtCore.Qt.Horizontal)
 
         self._weight_layout = utils.wrap_layout(
             [self._prune_layout,
-             self._smooth_layout,
              self._mirror_layout,
-             self._copy_vert_layout,
-             self._export_layout,
              self._import_layout],
             QtCore.Qt.Vertical,
             margins=[0, 0, 0, 0],
             spacing=5)
 
-        self._weight_frame = QtWidgets.QFrame(parent=self._central_widget)
-        self._weight_frame.setLayout(self._weight_layout)
-        self._weight_frame.setStyleSheet("QFrame {{background-color: {}}}".format(win_color.lighter(109).name()))
-
-        self._weight_scroll_area = QtWidgets.QScrollArea(parent=self._central_widget)
-        self._weight_scroll_area.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
-        self._weight_scroll_area.setFocusPolicy(QtCore.Qt.NoFocus)
-        self._weight_scroll_area.setWidget(self._weight_frame)
-        self._weight_scroll_area.setWidgetResizable(True)
-
-        self._weight_scroll_layout = utils.wrap_layout(
-            [self._weight_scroll_area],
-            QtCore.Qt.Vertical,
-            margins=[5, 0, 1, 0])
-
-        self._weight_groupbox = QtWidgets.QGroupBox("Weight utilities", parent=self._central_widget)
-        self._weight_groupbox.setLayout(self._weight_scroll_layout)
+        self._weight_utils_frame = QtWidgets.QWidget()
+        self._weight_utils_frame.setLayout(self._weight_layout)
 
         self._add_layout, self._add_groupbox, self._add_spinbox = \
             self._create_preset_layout(
                 -1, 1, 0.1,
                 self._set_add_on_clicked,
-                "Add / subtract weight")
+                "Add / Subtract Weight")
 
         self._scale_layout, self._scale_groupbox, self._scale_spinbox = \
             self._create_preset_layout(
                 -100, 100, 1,
                 self._set_scale_on_clicked,
-                "Scale weight",
+                "Scale Weight",
                 suffix="%")
 
         self._set_layout, self._set_groupbox, self._set_spinbox = \
             self._create_preset_layout(
                 0, 1, 0.1,
                 self._set_on_clicked,
-                "Set weight")
+                "Set Weight")
 
         # Setup table
         self._limit_warning_label = QtWidgets.QLabel(parent=self)
@@ -618,31 +639,19 @@ class WeightsEditor(QtWidgets.QMainWindow):
             view.select_inf_verts_triggered.connect(self._select_inf_verts_on_triggered)
 
         self._show_all_button = self._create_button(
-            "Show all influences", "interface/show.png",
+            "Show All Influences", "interface/show.png",
             tool_tip="Forces the table to show all influences.",
             click_event=self._selection_on_changed)
         self._show_all_button.setCheckable(True)
 
         self._hide_colors_button = self._create_button(
-            "Hide influence colors", "interface/hide.png")
+            "Hide Influence Colors", "interface/hide.png")
         self._hide_colors_button.setCheckable(True)
         self._hide_colors_button.toggled.connect(self._hide_colors_on_toggled)
 
-        self._flood_to_closest_button = self._create_button(
-            "Flood to closest", "interface/flood.png",
-            tool_tip="Set full weights to the closest joints for easier blocking.",
-            click_event=self._flood_to_closest_on_clicked)
-
-        self._toggle_hotkeys_button = self._create_button(
-            "Hotkeys enabled", "interface/hotkeys.png")
-        self._toggle_hotkeys_button.setCheckable(True)
-        self._toggle_hotkeys_button.toggled.connect(self._hotkeys_on_toggled)
-
         self._settings_layout = utils.wrap_layout(
             [self._show_all_button,
-             self._hide_colors_button,
-             self._flood_to_closest_button,
-             self._toggle_hotkeys_button],
+             self._hide_colors_button],
             QtCore.Qt.Horizontal)
 
         # Undo buttons
@@ -670,7 +679,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         for button in widgets:
             button.setMinimumWidth(10)
 
-        self._update_label = QtWidgets.QLabel(parent=self._central_widget)
+        self._update_label = QtWidgets.QLabel()
         self._update_label.setObjectName("updateLabel")
         self._update_label.setOpenExternalLinks(True)
 
@@ -679,16 +688,13 @@ class WeightsEditor(QtWidgets.QMainWindow):
             QtCore.Qt.Horizontal,
             margins=[3, 0, 3, 0])
 
-        self._update_frame = QtWidgets.QFrame(parent=self._central_widget)
+        self._update_frame = QtWidgets.QFrame()
         self._update_frame.setObjectName("updateFrame")
         self._update_frame.setLayout(self._update_layout)
         self._update_frame.hide()
 
-        self._main_layout = utils.wrap_layout(
-            [self._update_frame,
-             self._pick_obj_layout,
-             self._weight_groupbox,
-             self._add_groupbox,
+        self._central_layout = utils.wrap_layout(
+            [self._add_groupbox,
              self._scale_groupbox,
              self._set_groupbox,
              self._limit_warning_label,
@@ -698,24 +704,17 @@ class WeightsEditor(QtWidgets.QMainWindow):
              self._undo_layout],
             QtCore.Qt.Vertical,
             spacing=3)
-        self._central_widget.setLayout(self._main_layout)
 
-        self.setCentralWidget(self._central_widget)
+        self._central_widget = QtWidgets.QWidget()
+        self._central_widget.setLayout(self._central_layout)
 
     #
     # INFLUENCE WIDGET
     #
 
-        self._inf_dock_widget = QtWidgets.QDockWidget(parent=self)
-        self.setObjectName("weightsEditorInfluenceWidget")
-        self._inf_dock_widget.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable)
-        self._inf_dock_widget.setWindowTitle("Influences")
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self._inf_dock_widget)
+        self._inf_widget = QtWidgets.QWidget()
 
-        self._inf_widget = QtWidgets.QWidget(parent=self._inf_dock_widget)
-        self._inf_dock_widget.setWidget(self._inf_widget)
-
-        self._inf_filter_edit = QtWidgets.QLineEdit(parent=self._inf_widget)
+        self._inf_filter_edit = QtWidgets.QLineEdit()
         self._inf_filter_edit.setPlaceholderText("Filter list by names (use * as a wildcard)")
         self._inf_filter_edit.textChanged.connect(self._apply_filter_to_inf_list)
 
@@ -726,13 +725,13 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self.inf_list.select_inf_verts_triggered.connect(self._select_by_infs_on_clicked)
         self.inf_list.add_infs_to_verts_triggered.connect(self._add_inf_to_vert_on_clicked)
 
-        self._add_inf_to_vert_button = QtWidgets.QPushButton("Add inf to verts", parent=self._inf_widget)
+        self._add_inf_to_vert_button = QtWidgets.QPushButton("Add Inf to Verts")
         self._add_inf_to_vert_button.setIconSize(icon_size)
         self._add_inf_to_vert_button.setIcon(utils.load_pixmap("interface/add_inf.png"))
         self._add_inf_to_vert_button.setToolTip("Adds the selected influence to all selected vertexes.")
         self._add_inf_to_vert_button.clicked.connect(self._add_inf_to_vert_on_clicked)
 
-        self._select_by_infs_button = QtWidgets.QPushButton("Select influence's verts", parent=self._inf_widget)
+        self._select_by_infs_button = QtWidgets.QPushButton("Select Inf's Verts")
         self._select_by_infs_button.setIconSize(icon_size)
         self._select_by_infs_button.setIcon(utils.load_pixmap("interface/select.png"))
         self._select_by_infs_button.setToolTip("Selects all vertexes that is effected by the selected influences.")
@@ -745,6 +744,21 @@ class WeightsEditor(QtWidgets.QMainWindow):
              self._select_by_infs_button],
             QtCore.Qt.Vertical)
         self._inf_widget.setLayout(self._inf_layout)
+
+        self._splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        self._splitter.addWidget(self._central_widget)
+        self._splitter.addWidget(self._inf_widget)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 0)
+
+        self._main_layout = QtWidgets.QVBoxLayout()
+        self._main_layout.setSpacing(3)
+        self._main_layout.setMenuBar(self._menu_bar)
+        self._main_layout.addWidget(self._update_frame, stretch=0)
+        self._main_layout.addLayout(self._pick_obj_layout, stretch=0)
+        self._main_layout.addWidget(self._weight_utils_frame, stretch=0)
+        self._main_layout.addWidget(self._splitter, stretch=1)
+        self.setLayout(self._main_layout)
 
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self._update_window_title()
@@ -760,11 +774,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             title += " - {obj}".format(obj=self.obj.short_name())
         self.setWindowTitle(title)
 
-    def _create_button(self, caption, img_name, icon_size=QtCore.QSize(13, 13), tool_tip=None, click_event=None, parent=None):
-        if parent is None:
-            parent = self._central_widget
-
-        button = QtWidgets.QPushButton(caption, parent=parent)
+    def _create_button(self, caption, img_name, icon_size=QtCore.QSize(13, 13), tool_tip=None, click_event=None):
+        button = QtWidgets.QPushButton(caption)
         button.setIconSize(icon_size)
         button.setIcon(utils.load_pixmap(img_name))
 
@@ -777,7 +788,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         return button
 
     def _create_preset_layout(self, spinbox_min, spinbox_max, spinbox_steps, spinbox_callback, caption, suffix=""):
-        spinbox = custom_double_spinbox.CustomDoubleSpinbox(parent=self._central_widget)
+        spinbox = custom_double_spinbox.CustomDoubleSpinbox()
         spinbox.setToolTip("Click spinbox and press enter to apply its value")
         spinbox.setFixedWidth(80)
         spinbox.setFixedHeight(25)
@@ -793,7 +804,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             margins=[5, 3, 1, 3])
         layout.setAlignment(QtCore.Qt.AlignLeft)
 
-        groupbox = QtWidgets.QGroupBox(caption, parent=self._central_widget)
+        groupbox = QtWidgets.QGroupBox(caption)
         groupbox.setLayout(layout)
 
         return layout, groupbox, spinbox
@@ -808,7 +819,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         for value in values:
             text = "".join([str(value), suffix])
-            preset_button = QtWidgets.QPushButton(text, parent=self._central_widget)
+            preset_button = QtWidgets.QPushButton(text, parent=self)
             preset_button.setMaximumWidth(60)
             preset_button.setSizePolicy(
                 QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
@@ -943,7 +954,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         data = {
             "width": self.width(),
             "height": self.height(),
-            "inf_dock_widget.area": int(self.dockWidgetArea(self._inf_dock_widget)),
+            "splitter.sizes": self._splitter.sizes(),
             "color_style": self.color_style,
             "prune_spinbox.value": self._prune_by_value_spinbox.value(),
             "prune_max_infs_spinbox.value": self._prune_max_infs_spinbox.value(),
@@ -959,7 +970,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "auto_select_button.isChecked": self.auto_select_vertex_action.isChecked(),
             "auto_select_infs_button.isChecked": self._auto_select_infs_action.isChecked(),
             "hide_colors_button.isChecked": self._hide_colors_button.isChecked(),
-            "toggle_hotkeys_button.isChecked": self._toggle_hotkeys_button.isChecked(),
+            "enable_hotkeys_action.isChecked": self._enable_hotkeys_action.isChecked(),
             "toggle_view_button.isChecked": self._toggle_view_button.isChecked(),
             "show_utilities_button.isChecked": self._show_utilities_button.isChecked(),
             "show_add_button.isChecked": self._show_add_button.isChecked(),
@@ -1000,18 +1011,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
         if "width" in data and "height" in data:
             self.resize(QtCore.QSize(data["width"], data["height"]))
-        
-        if "inf_dock_widget.area" in data:
-            all_areas = {
-                1: QtCore.Qt.LeftDockWidgetArea,
-                2: QtCore.Qt.RightDockWidgetArea,
-                4: QtCore.Qt.TopDockWidgetArea,
-                8: QtCore.Qt.BottomDockWidgetArea}
-            
-            area = all_areas.get(data["inf_dock_widget.area"])
-            if area is not None:
-                self.addDockWidget(area, self._inf_dock_widget)
-        
+
+        if "splitter.sizes" in data:
+            self._splitter.setSizes(data["splitter.sizes"])
+
         if "color_style" in data:
             self.color_style = data["color_style"]
             color_actions = [self._max_color_action, self._maya_color_action, self._softimage_color_action, self._max_infs_color_action]
@@ -1049,7 +1052,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "auto_select_button.isChecked": self.auto_select_vertex_action,
             "auto_select_infs_button.isChecked": self._auto_select_infs_action,
             "hide_colors_button.isChecked": self._hide_colors_button,
-            "toggle_hotkeys_button.isChecked": self._toggle_hotkeys_button,
+            "enable_hotkeys_action.isChecked": self._enable_hotkeys_action,
             "toggle_view_button.isChecked": self._toggle_view_button,
             "show_utilities_button.isChecked": self._show_utilities_button,
             "show_add_button.isChecked": self._show_add_button,
@@ -1853,11 +1856,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
 
     def _hotkeys_on_toggled(self, checked):
         self._remove_shortcuts()
-
         if checked:
-            self._toggle_hotkeys_button.setText("Hotkeys disabled")
-        else:
-            self._toggle_hotkeys_button.setText("Hotkeys enabled")
             self._register_shortcuts()
 
     def _switch_color_on_clicked(self, index):
@@ -1924,7 +1923,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._recollect_table_data()
 
     def _show_utilities_on_toggled(self, enabled):
-        self._weight_groupbox.setVisible(enabled)
+        self._weight_utils_frame.setVisible(enabled)
 
     def _show_add_on_toggled(self, enabled):
         self._add_groupbox.setVisible(enabled)
@@ -1936,7 +1935,7 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._set_groupbox.setVisible(enabled)
 
     def _show_inf_on_toggled(self, enabled):
-        self._inf_dock_widget.setVisible(enabled)
+        self._inf_widget.setVisible(enabled)
     
     def _undo_on_clicked(self):
         if not self._undo_stack.canUndo():
