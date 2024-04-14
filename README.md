@@ -8,12 +8,12 @@ A skin weights component editor inspired from Softimage.
 
 # 🖥️ Interface
 
-![weightsEditorList](https://github.com/theRussetPotato/weights_editor/assets/14979497/0882ec06-8295-4740-a2c8-1cbc4449e507)<br>
+![weightsEditorList](https://github.com/theRussetPotato/weights_editor/assets/14979497/b5c3c9b7-4d4d-47d1-8aad-88ade408d4a9)<br>
 _The interface using the list view with averaged values_
 
 <br>
 
-![weightsEditorTable](https://github.com/theRussetPotato/weights_editor/assets/14979497/f028aec2-2dad-4c8a-9be9-86664d2d6bea)<br>
+![weightsEditorTable](https://github.com/theRussetPotato/weights_editor/assets/14979497/c0c7a5f4-bb80-42b3-8b21-d5ac7e7d2dd1)<br>
 _The interface using the table view_
 
 ## ⭐ Features
