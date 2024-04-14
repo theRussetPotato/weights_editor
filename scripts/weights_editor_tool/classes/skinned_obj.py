@@ -861,7 +861,7 @@ class SkinnedObj:
                 continue
 
             transform = cmds.listRelatives(meshes[0], parent=True)[0]
-            export_path = f"{export_folder}/{transform}.skin"
+            export_path = "{}/{}.skin".format(export_path, transform)
             skinned_obj = cls.create(transform)
             skinned_obj.export_skin(export_path)
             if delete_skin_cluster:
@@ -883,7 +883,7 @@ class SkinnedObj:
             if not import_folder:
                 return
 
-        skin_files = glob.glob(f"{import_folder}/*.skin")
+        skin_files = glob.glob("{}/*.skin".format(import_folder))
         if not skin_files:
             OpenMaya.MGlobal.displayWarning("The folder contains no skin files to import with.")
             return
