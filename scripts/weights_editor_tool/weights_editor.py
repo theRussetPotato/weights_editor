@@ -49,7 +49,7 @@ from weights_editor_tool.widgets import about_dialog
 
 class WeightsEditor(QtWidgets.QMainWindow):
 
-    version = "2.3.1"
+    version = "2.3.2"
     instance = None
     cb_selection_changed = None
     shortcuts = []
@@ -299,6 +299,11 @@ class WeightsEditor(QtWidgets.QMainWindow):
         self._hide_long_names_action.toggled.connect(self._hide_long_names_on_triggered)
         self._options_menu.addAction(self._hide_long_names_action)
 
+        self._delete_skin_on_export_all_action = QtWidgets.QAction("Delete skinClusters on `Export all`", self)
+        self._delete_skin_on_export_all_action.setCheckable(True)
+        self._delete_skin_on_export_all_action.setChecked(True)
+        self._options_menu.addAction(self._delete_skin_on_export_all_action)
+
         self._visibility_separator = QtWidgets.QAction("Visibility settings", self)
         self._visibility_separator.setSeparator(True)
         self._options_menu.addAction(self._visibility_separator)
@@ -509,6 +514,18 @@ class WeightsEditor(QtWidgets.QMainWindow):
             tool_tip="Export selected object's skin weights to a file",
             click_event=self._export_weights_on_clicked)
 
+        self._export_all_weights_button = self._create_button(
+            "Export all weights", "interface/export_weights.png",
+            tool_tip="Export skin weights from all skin clusters in the scene to a folder<br><br>"
+                     "Go to `Tool settings` to toggle if skinClusters should be deleted after they export.",
+            click_event=self._export_all_weights_on_clicked)
+
+        self._export_layout = utils.wrap_layout(
+            [self._export_weights_button,
+             self._export_all_weights_button,
+             "stretch"],
+            QtCore.Qt.Horizontal)
+
         self._import_weights_button = self._create_button(
             "Import weights", "interface/import_weights.png",
             tool_tip="Import skin weights onto the selected object<br><br>"
@@ -521,11 +538,16 @@ class WeightsEditor(QtWidgets.QMainWindow):
                      "<b>This may be long for dense meshes!</b>",
             click_event=partial(self._import_weights_on_clicked, True))
 
-        self._export_import_layout = utils.wrap_layout(
-            [self._export_weights_button,
-             15,
-             self._import_weights_button,
+        self._import_all_weights_button = self._create_button(
+            "Import all weights", "interface/import_weights.png",
+            tool_tip="Pick a folder with skin files and try to import them all.<br><br>"
+                     "It will search the mesh by name using the skin's file name.",
+            click_event=self._import_all_weights_on_clicked)
+
+        self._import_layout = utils.wrap_layout(
+            [self._import_weights_button,
              self._import_weights_world_button,
+             self._import_all_weights_button,
              "stretch"],
             QtCore.Qt.Horizontal)
 
@@ -534,7 +556,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
              self._smooth_layout,
              self._mirror_layout,
              self._copy_vert_layout,
-             self._export_import_layout],
+             self._export_layout,
+             self._import_layout],
             QtCore.Qt.Vertical,
             margins=[0, 0, 0, 0],
             spacing=5)
@@ -944,10 +967,12 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_set_button.isChecked": self._show_set_button.isChecked(),
             "show_inf_button.isChecked": self._show_inf_button.isChecked(),
             "hide_long_names_action.isChecked": self._hide_long_names_action.isChecked(),
+            "delete_skin_on_export_all_action.isChecked": self._delete_skin_on_export_all_action.isChecked(),
             "weights_table.max_display_count": self._weights_table.table_model.max_display_count,
             "add_presets_values": self._add_preset_values,
             "scale_presets_values": self._scale_preset_values,
-            "set_presets_values": self._set_preset_values
+            "set_presets_values": self._set_preset_values,
+            "skinned_obj.last_browsing_path": SkinnedObj.last_browsing_path
         }
 
         hotkeys_data = {}
@@ -1031,7 +1056,8 @@ class WeightsEditor(QtWidgets.QMainWindow):
             "show_scale_button.isChecked": self._show_scale_button,
             "show_set_button.isChecked": self._show_set_button,
             "show_inf_button.isChecked": self._show_inf_button,
-            "hide_long_names_action.isChecked": self._hide_long_names_action
+            "hide_long_names_action.isChecked": self._hide_long_names_action,
+            "delete_skin_on_export_all_action.isChecked": self._delete_skin_on_export_all_action
         }
 
         for key, checkbox in checkboxes.items():
@@ -1060,6 +1086,10 @@ class WeightsEditor(QtWidgets.QMainWindow):
         if "set_presets_values" in data:
             self._set_preset_values = data["set_presets_values"]
         self._append_set_presets_buttons(self._set_preset_values)
+
+        path = data.get("skinned_obj.last_browsing_path")
+        if path and os.path.exists(path):
+            SkinnedObj.last_browsing_path = path
     
     def _update_obj(self, obj):
         """
@@ -1714,10 +1744,51 @@ class WeightsEditor(QtWidgets.QMainWindow):
             print(traceback.format_exc())
             OpenMaya.MGlobal.displayError(str(err))
 
+    def _export_all_weights_on_clicked(self):
+        try:
+            delete_skin_clusters = self._delete_skin_on_export_all_action.isChecked()
+            SkinnedObj.export_all_skins(delete_skin_clusters)
+        except Exception as err:
+            print(traceback.format_exc())
+            OpenMaya.MGlobal.displayError(str(err))
+
     def _import_weights_on_clicked(self, use_world_positions):
         try:
+            msg_box = QtWidgets.QMessageBox(
+                QtWidgets.QMessageBox.Warning,
+                "Undos will be lost",
+                "The tool's undo stack will reset and be lost.\n"
+                "Would you like to continue?")
+
+            msg_box.addButton(QtWidgets.QMessageBox.Cancel)
+            msg_box.addButton(QtWidgets.QMessageBox.Ok)
+            msg_box.setDefaultButton(QtWidgets.QMessageBox.Cancel)
+            if msg_box.exec_() == QtWidgets.QMessageBox.Cancel:
+                return False
+
             status = self.obj.import_skin(world_space=use_world_positions)
-            if status:
+            if status and self.obj.is_valid():
+                self._update_obj(self.obj.name)
+        except Exception as err:
+            print(traceback.format_exc())
+            OpenMaya.MGlobal.displayError(str(err))
+
+    def _import_all_weights_on_clicked(self):
+        try:
+            msg_box = QtWidgets.QMessageBox(
+                QtWidgets.QMessageBox.Warning,
+                "Undos will be lost",
+                "The tool's undo stack will reset and be lost.\n"
+                "Would you like to continue?")
+
+            msg_box.addButton(QtWidgets.QMessageBox.Cancel)
+            msg_box.addButton(QtWidgets.QMessageBox.Ok)
+            msg_box.setDefaultButton(QtWidgets.QMessageBox.Cancel)
+            if msg_box.exec_() == QtWidgets.QMessageBox.Cancel:
+                return False
+
+            SkinnedObj.import_all_skins(False, True)
+            if self.obj.is_valid():
                 self._update_obj(self.obj.name)
         except Exception as err:
             print(traceback.format_exc())

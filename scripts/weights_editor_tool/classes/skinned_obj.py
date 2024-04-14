@@ -1,6 +1,7 @@
 import sys
 import os
 import random
+import glob
 
 if sys.version_info < (3, 0):
     import cPickle
@@ -643,7 +644,53 @@ class SkinnedObj:
         if normalize:
             cmds.skinCluster(self.skin_cluster, e=True, forceNormalizeWeights=True)
 
-    def import_skin(self, file_path=None, world_space=False, create_missing_infs=True, prompt=True):
+    def serialize(self):
+        if not self.has_valid_skin():
+            raise RuntimeError("Unable to detect a skinCluster on '{}'.".format(self.name))
+
+        skin_data = self.skin_data.copy()
+        mesh_points = self._get_world_points()
+
+        with status_progress_bar.StatusProgressBar("Saving vert positions", len(mesh_points)) as pbar:
+            for vert_index, pnt in enumerate(mesh_points):
+                skin_data[vert_index]["world_pos"] = [pnt.x, pnt.y, pnt.z]
+
+                if pbar.was_cancelled():
+                    raise RuntimeError("User cancelled")
+
+                pbar.next()
+
+        influence_data = {}
+        influence_ids = self.get_influence_ids()
+
+        with status_progress_bar.StatusProgressBar("Saving influence positions", len(influence_ids)) as pbar:
+            for inf_id, inf in influence_ids.items():
+                influence_data[inf_id] = {
+                    "name": inf,
+                    "world_matrix": cmds.xform(inf, q=True, ws=True, m=True)
+                }
+
+                if pbar.was_cancelled():
+                    raise RuntimeError("User cancelled")
+
+                pbar.next()
+
+        return {
+            "version": constants.EXPORT_VERSION,
+            "object": self.name,
+            "verts": skin_data.data,
+            "influences": influence_data,
+            "skin_cluster": {
+                "name": self.skin_cluster,
+                "vert_count": cmds.polyEvaluate(self.name, vertex=True),
+                "influence_count": len(influence_ids),
+                "max_influences": cmds.getAttr("{}.maxInfluences".format(self.skin_cluster)),
+                "skinning_method": cmds.getAttr("{}.skinningMethod".format(self.skin_cluster)),
+                "dqs_support_non_rigid": cmds.getAttr("{}.dqsSupportNonRigid".format(self.skin_cluster))
+            }
+        }
+
+    def import_skin(self, file_path=None, world_space=False, create_missing_infs=True):
         """
         Imports skin weights from a file.
 
@@ -651,24 +698,9 @@ class SkinnedObj:
             file_path(string): An absolute path to save weights to.
             world_space(bool): False=loads by point order, True=loads by world positions
             create_missing_infs(bool): Create any missing influences so the skin can still import.
-            prompt(bool): Asks for user confirmation if enabled.
         """
         if not self.is_valid():
             raise RuntimeError("Need to pick an object first.")
-
-        if prompt:
-            msg_box = QtWidgets.QMessageBox(
-                QtWidgets.QMessageBox.Warning,
-                "Undos will be lost",
-                "The tool's undo stack will reset and be lost.\n"
-                "Would you like to continue?")
-
-            msg_box.addButton(QtWidgets.QMessageBox.Cancel)
-            msg_box.addButton(QtWidgets.QMessageBox.Ok)
-            msg_box.setDefaultButton(QtWidgets.QMessageBox.Cancel)
-
-            if msg_box.exec_() == QtWidgets.QMessageBox.Cancel:
-                return False
 
         if file_path is None:
             file_path = self._launch_file_picker(1, "Import skin")
@@ -775,52 +807,6 @@ class SkinnedObj:
 
         return True
 
-    def serialize(self):
-        if not self.has_valid_skin():
-            raise RuntimeError("Unable to detect a skinCluster on '{}'.".format(self.name))
-
-        skin_data = self.skin_data.copy()
-        mesh_points = self._get_world_points()
-
-        with status_progress_bar.StatusProgressBar("Saving vert positions", len(mesh_points)) as pbar:
-            for vert_index, pnt in enumerate(mesh_points):
-                skin_data[vert_index]["world_pos"] = [pnt.x, pnt.y, pnt.z]
-
-                if pbar.was_cancelled():
-                    raise RuntimeError("User cancelled")
-
-                pbar.next()
-
-        influence_data = {}
-        influence_ids = self.get_influence_ids()
-
-        with status_progress_bar.StatusProgressBar("Saving influence positions", len(influence_ids)) as pbar:
-            for inf_id, inf in influence_ids.items():
-                influence_data[inf_id] = {
-                    "name": inf,
-                    "world_matrix": cmds.xform(inf, q=True, ws=True, m=True)
-                }
-
-                if pbar.was_cancelled():
-                    raise RuntimeError("User cancelled")
-
-                pbar.next()
-
-        return {
-            "version": constants.EXPORT_VERSION,
-            "object": self.name,
-            "verts": skin_data.data,
-            "influences": influence_data,
-            "skin_cluster": {
-                "name": self.skin_cluster,
-                "vert_count": cmds.polyEvaluate(self.name, vertex=True),
-                "influence_count": len(influence_ids),
-                "max_influences": cmds.getAttr("{}.maxInfluences".format(self.skin_cluster)),
-                "skinning_method": cmds.getAttr("{}.skinningMethod".format(self.skin_cluster)),
-                "dqs_support_non_rigid": cmds.getAttr("{}.dqsSupportNonRigid".format(self.skin_cluster))
-            }
-        }
-
     def export_skin(self, file_path=None):
         """
         Exports skin weights to a file.
@@ -849,3 +835,64 @@ class SkinnedObj:
             f.write(cPickle.dumps(skin_data))
 
         return file_path
+
+    @classmethod
+    def export_all_skins(cls, delete_skin_cluster, export_folder=None):
+        """
+        Fetches all skinClusters in the scene and exports them all to a specified folder.
+
+        Args:
+            delete_skin_cluster(bool): If enabled, deletes the skinCluster after it's exported.
+            export_folder(str): An absolute path to an existing folder to export the skins to. If None, a file picker will launch.
+        """
+        if export_folder is None:
+            export_folder = cls._launch_file_picker(3, "The folder to export all skins to")
+            if not export_folder:
+                return
+
+        skin_clusters = cmds.ls(type="skinCluster")
+        if not skin_clusters:
+            OpenMaya.MGlobal.displayWarning("There are no skinClusters in the scene to export.")
+            return
+
+        for skin_cluster in skin_clusters:
+            meshes = cmds.ls(cmds.listHistory(skin_cluster) or [], type="mesh")
+            if not meshes:
+                continue
+
+            transform = cmds.listRelatives(meshes[0], parent=True)[0]
+            export_path = f"{export_folder}/{transform}.skin"
+            skinned_obj = cls.create(transform)
+            skinned_obj.export_skin(export_path)
+            if delete_skin_cluster:
+                cmds.delete(transform, ch=True)
+
+    @classmethod
+    def import_all_skins(cls, world_space, create_missing_infs, import_folder=None):
+        """
+        Fetches all skin files from the supplied folder and tries to import them all into the scene.
+        It tries to load by name using the skin's file name.
+
+        Args:
+            world_space(bool): False=loads by point order, True=loads by world positions
+            create_missing_infs(bool): Create any missing influences so the skin can still import.
+            import_folder(string): An absolute path to a folder that contains skin files.
+        """
+        if import_folder is None:
+            import_folder = cls._launch_file_picker(3, "Pick a folder with skin files to import them")
+            if not import_folder:
+                return
+
+        skin_files = glob.glob(f"{import_folder}/*.skin")
+        if not skin_files:
+            OpenMaya.MGlobal.displayWarning("The folder contains no skin files to import with.")
+            return
+
+        for skin_path in skin_files:
+            transform = os.path.basename(skin_path).split(".")[0]
+            if not cmds.objExists(transform):
+                OpenMaya.MGlobal.displayWarning("Unable to find the object to import weights onto: `{0}`".format(transform))
+                continue
+
+            skinned_obj = SkinnedObj.create(transform)
+            skinned_obj.import_skin(file_path=skin_path, world_space=world_space, create_missing_infs=create_missing_infs)
