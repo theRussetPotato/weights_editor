@@ -14,7 +14,7 @@ _The interface using the list view with averaged values_
 <br>
 
 ![weightsEditorTable](https://github.com/theRussetPotato/weights_editor/assets/14979497/c0c7a5f4-bb80-42b3-8b21-d5ac7e7d2dd1)<br>
-_The interface using the table view_
+_The interface using the table view for more granular control_
 
 ## ⭐ Features
 
