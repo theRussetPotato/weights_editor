@@ -37,10 +37,12 @@ _The interface using the table view for more granular control_
   - Mirror selected vertexes or all weights
   - Copy & paste vertex weights
 - Skin weights exporter, which include dual-quaternion weights
+  - A button to batch export let's you export out all skinClusters from the scene to a specified folder.
 - Skin weights importer
   - Import via point order
   - Import via world space positions from the mesh's vertices
   - Weights can also import onto selected vertices only, so you can maintain existing skin weights outside of the selection.
+  - A button to batch import let's you pick a folder that contains skin files that were previously exported, and import them all at once.
 - Button to flood full weights to the vertex's closest influence to begin quick blocking
 - All operations support undo/redo
 - Most operations are assigned to hotkeys, which can be re-assigned
