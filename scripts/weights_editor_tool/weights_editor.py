@@ -425,8 +425,8 @@ class WeightsEditor(QtWidgets.QWidget):
              margins=[5, 5, 5, 5])
 
         self._smooth_strength_spinbox = QtWidgets.QDoubleSpinBox(value=1)
+        self._smooth_strength_spinbox.setFixedWidth(70)
         self._smooth_strength_spinbox.setToolTip("Smooth's strength.")
-        self._smooth_strength_spinbox.setMinimumWidth(60)
         self._smooth_strength_spinbox.setDecimals(2)
         self._smooth_strength_spinbox.setMinimum(0)
         self._smooth_strength_spinbox.setMaximum(1)
@@ -446,8 +446,8 @@ class WeightsEditor(QtWidgets.QWidget):
             self._smooth_br_button.setEnabled(False)
 
         self._prune_by_value_spinbox = QtWidgets.QDoubleSpinBox(value=0.1)
+        self._prune_by_value_spinbox.setFixedWidth(70)
         self._prune_by_value_spinbox.setToolTip("Prune any influence below this value.")
-        self._prune_by_value_spinbox.setMinimumWidth(60)
         self._prune_by_value_spinbox.setDecimals(3)
         self._prune_by_value_spinbox.setMinimum(0.001)
         self._prune_by_value_spinbox.setSingleStep(0.01)
@@ -458,8 +458,8 @@ class WeightsEditor(QtWidgets.QWidget):
         self._prune_by_value_button.setObjectName("pruneButton")
 
         self._prune_max_infs_spinbox = QtWidgets.QSpinBox(value=4)
+        self._prune_max_infs_spinbox.setFixedWidth(70)
         self._prune_max_infs_spinbox.setToolTip("Prune selected vertexes to this number of influences.")
-        self._prune_max_infs_spinbox.setMinimumWidth(60)
         self._prune_max_infs_spinbox.setMinimum(1)
         self._prune_max_infs_spinbox.editingFinished.connect(self._prune_max_infs_on_editing_finished)
 
@@ -477,8 +477,7 @@ class WeightsEditor(QtWidgets.QWidget):
              self._prune_by_value_button,
              15,
              self._prune_max_infs_spinbox,
-             self._prune_max_infs_button,
-             "stretch"],
+             self._prune_max_infs_button],
             QtCore.Qt.Horizontal)
 
         self._mirror_skin_button = self._create_button(
@@ -533,8 +532,7 @@ class WeightsEditor(QtWidgets.QWidget):
              self._mirror_all_skin_button,
              15,
              self._copy_vertex_button,
-             self._paste_vertex_button,
-             "stretch"],
+             self._paste_vertex_button],
             QtCore.Qt.Horizontal,
             margins=[0, 0, 0, 0])
 
@@ -586,8 +584,7 @@ class WeightsEditor(QtWidgets.QWidget):
              self._import_weights_world_button,
              self._import_all_weights_button,
              15,
-             self._flood_to_closest_button,
-             "stretch"],
+             self._flood_to_closest_button],
             QtCore.Qt.Horizontal)
 
         self._weight_layout = utils.wrap_layout(
@@ -601,24 +598,24 @@ class WeightsEditor(QtWidgets.QWidget):
         self._weight_utils_frame = QtWidgets.QWidget()
         self._weight_utils_frame.setLayout(self._weight_layout)
 
-        self._add_layout, self._add_groupbox, self._add_spinbox = \
+        self._add_layout, self._add_widget, self._add_spinbox = \
             self._create_preset_layout(
                 -1, 1, 0.1,
                 self._set_add_on_clicked,
-                "Add / Subtract Weight")
+                "Add:")
 
-        self._scale_layout, self._scale_groupbox, self._scale_spinbox = \
+        self._scale_layout, self._scale_widget, self._scale_spinbox = \
             self._create_preset_layout(
                 -100, 100, 1,
                 self._set_scale_on_clicked,
-                "Scale Weight",
+                "Scale:",
                 suffix="%")
 
-        self._set_layout, self._set_groupbox, self._set_spinbox = \
+        self._set_layout, self._set_widget, self._set_spinbox = \
             self._create_preset_layout(
                 0, 1, 0.1,
                 self._set_on_clicked,
-                "Set Weight")
+                "Set:")
 
         # Setup table
         self._limit_warning_label = QtWidgets.QLabel(parent=self)
@@ -694,9 +691,9 @@ class WeightsEditor(QtWidgets.QWidget):
         self._update_frame.hide()
 
         self._central_layout = utils.wrap_layout(
-            [self._add_groupbox,
-             self._scale_groupbox,
-             self._set_groupbox,
+            [self._add_widget,
+             self._scale_widget,
+             self._set_widget,
              self._limit_warning_label,
              self._weights_list,
              self._weights_table,
@@ -778,6 +775,8 @@ class WeightsEditor(QtWidgets.QWidget):
         button = QtWidgets.QPushButton(caption)
         button.setIconSize(icon_size)
         button.setIcon(utils.load_pixmap(img_name))
+        button.setMinimumWidth(50)
+        button.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
 
         if tool_tip is not None:
             button.setToolTip(tool_tip)
@@ -788,10 +787,13 @@ class WeightsEditor(QtWidgets.QWidget):
         return button
 
     def _create_preset_layout(self, spinbox_min, spinbox_max, spinbox_steps, spinbox_callback, caption, suffix=""):
+        label = QtWidgets.QLabel(caption)
+        label.setFixedWidth(30)
+
         spinbox = custom_double_spinbox.CustomDoubleSpinbox()
         spinbox.setToolTip("Click spinbox and press enter to apply its value")
-        spinbox.setFixedWidth(80)
-        spinbox.setFixedHeight(25)
+        spinbox.setFixedWidth(70)
+        spinbox.setFixedHeight(22)
         spinbox.setSuffix(suffix)
         spinbox.setSingleStep(spinbox_steps)
         spinbox.setMinimum(spinbox_min)
@@ -799,22 +801,23 @@ class WeightsEditor(QtWidgets.QWidget):
         spinbox.enter_pressed.connect(spinbox_callback)
 
         layout = utils.wrap_layout(
-            [spinbox],
+            [label, spinbox],
             QtCore.Qt.Horizontal,
             margins=[5, 3, 1, 3])
         layout.setAlignment(QtCore.Qt.AlignLeft)
 
-        groupbox = QtWidgets.QGroupBox(caption)
-        groupbox.setLayout(layout)
+        widget = QtWidgets.QWidget()
+        widget.setLayout(layout)
 
-        return layout, groupbox, spinbox
+        return layout, widget, spinbox
 
     def _append_preset_buttons(self, values, layout, preset_callback, tooltip, suffix=""):
         """
         Procedurally creates multiple preset buttons to adjust weights.
         """
-        for i in range(layout.count() - 1):
-            old_button = layout.takeAt(1).widget()
+        offset = 2
+        for i in range(layout.count() - offset):
+            old_button = layout.takeAt(offset).widget()
             old_button.deleteLater()
 
         for value in values:
@@ -1926,13 +1929,13 @@ class WeightsEditor(QtWidgets.QWidget):
         self._weight_utils_frame.setVisible(enabled)
 
     def _show_add_on_toggled(self, enabled):
-        self._add_groupbox.setVisible(enabled)
+        self._add_widget.setVisible(enabled)
 
     def _show_scale_on_toggled(self, enabled):
-        self._scale_groupbox.setVisible(enabled)
+        self._scale_widget.setVisible(enabled)
 
     def _show_set_on_toggled(self, enabled):
-        self._set_groupbox.setVisible(enabled)
+        self._set_widget.setVisible(enabled)
 
     def _show_inf_on_toggled(self, enabled):
         self._inf_widget.setVisible(enabled)
