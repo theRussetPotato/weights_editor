@@ -47,21 +47,27 @@ class SkinnedObj:
         return cls(None)
 
     @classmethod
-    def _launch_file_picker(cls, file_mode, caption, file_name="", ext="skin"):
+    def _launch_file_picker(cls, file_mode, caption, file_name="", ext="skin", ok_caption="OK"):
         if cls.last_browsing_path is None:
             cls.last_browsing_path = cmds.workspace(q=True, fullName=True)
 
-        if file_name:
-            cls.last_browsing_path = os.path.join(cls.last_browsing_path, file_name + "." + ext)
+        last_path = cls.last_browsing_path
+        if file_mode != 3:
+            last_path = os.path.join(last_path, file_name + "." + ext)
 
         picked_path = cmds.fileDialog2(
             caption=caption,
             fileMode=file_mode,
             fileFilter="*.{}".format(ext),
-            dir=cls.last_browsing_path)
+            dir=last_path,
+            okCaption=ok_caption)
 
         if picked_path:
-            cls.last_browsing_path = picked_path[0]
+            if file_mode == 3:
+                cls.last_browsing_path = picked_path[0]
+            else:
+                cls.last_browsing_path = os.path.dirname(picked_path[0])
+            
             return picked_path[0]
 
     @staticmethod
@@ -703,7 +709,7 @@ class SkinnedObj:
             raise RuntimeError("Need to pick an object first.")
 
         if file_path is None:
-            file_path = self._launch_file_picker(1, "Import skin")
+            file_path = self._launch_file_picker(1, "Import skin", ok_caption="Import")
             if not file_path:
                 return False
 
@@ -821,7 +827,7 @@ class SkinnedObj:
             raise RuntimeError("Picked object needs to have a skin cluster to export.")
 
         if file_path is None:
-            file_path = self._launch_file_picker(0, "Export skin", file_name=self.name.split("|")[-1])
+            file_path = self._launch_file_picker(0, "Export skin", file_name=self.name.split("|")[-1], ok_caption="Export")
             if not file_path:
                 return
 
@@ -846,7 +852,7 @@ class SkinnedObj:
             export_folder(str): An absolute path to an existing folder to export the skins to. If None, a file picker will launch.
         """
         if export_folder is None:
-            export_folder = cls._launch_file_picker(3, "The folder to export all skins to")
+            export_folder = cls._launch_file_picker(3, "Pick a folder to export all skinClusters to", ok_caption="Export")
             if not export_folder:
                 return
 
@@ -861,7 +867,7 @@ class SkinnedObj:
                 continue
 
             transform = cmds.listRelatives(meshes[0], parent=True)[0]
-            export_path = "{}/{}.skin".format(export_path, transform)
+            export_path = "{}/{}.skin".format(export_folder, transform)
             skinned_obj = cls.create(transform)
             skinned_obj.export_skin(export_path)
             if delete_skin_cluster:
@@ -879,7 +885,7 @@ class SkinnedObj:
             import_folder(string): An absolute path to a folder that contains skin files.
         """
         if import_folder is None:
-            import_folder = cls._launch_file_picker(3, "Pick a folder with skin files to import them")
+            import_folder = cls._launch_file_picker(3, "Pick a folder with skin files to import them", ok_caption="Import")
             if not import_folder:
                 return
 
