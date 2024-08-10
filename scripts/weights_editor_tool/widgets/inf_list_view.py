@@ -1,26 +1,22 @@
 import fnmatch
 from functools import partial
 
-from maya import cmds
-from maya import OpenMaya
-
-from PySide2 import QtGui
-from PySide2 import QtCore
-from PySide2 import QtWidgets
+from maya import cmds, OpenMaya
 
 from weights_editor_tool import weights_editor_utils as utils
+from weights_editor_tool.widgets.widgets_utils import *
 
 
-class InfListView(QtWidgets.QListView):
+class InfListView(QListView):
     
-    middle_clicked = QtCore.Signal(str)
-    toggle_locks_triggered = QtCore.Signal(list)
-    set_locks_triggered = QtCore.Signal(list, bool)
-    select_inf_verts_triggered = QtCore.Signal()
-    add_infs_to_verts_triggered = QtCore.Signal()
+    middle_clicked = Signal(str)
+    toggle_locks_triggered = Signal(list)
+    set_locks_triggered = Signal(list, bool)
+    select_inf_verts_triggered = Signal()
+    add_infs_to_verts_triggered = Signal()
     
     def __init__(self, editor_inst, parent=None):
-        QtWidgets.QListView.__init__(self, parent=parent)
+        QListView.__init__(self, parent=parent)
 
         self._last_filter = ""
 
@@ -28,36 +24,36 @@ class InfListView(QtWidgets.QListView):
         self.setModel(self.list_model)
 
         self.setAlternatingRowColors(True)
-        self.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
         self.doubleClicked.connect(self._on_double_clicked)
 
-        self._display_inf_action = QtWidgets.QAction(self)
+        self._display_inf_action = QAction(self)
         self._display_inf_action.setText("Display influence (middle-click)")
         self._display_inf_action.triggered.connect(self._display_current_inf)
 
-        self._select_infs_action = QtWidgets.QAction(self)
+        self._select_infs_action = QAction(self)
         self._select_infs_action.setText("Select influences (double-click)")
         self._select_infs_action.triggered.connect(self._select_current_infs)
 
-        self._select_inf_verts_action = QtWidgets.QAction(self)
+        self._select_inf_verts_action = QAction(self)
         self._select_inf_verts_action.setText("Select influence's vertexes")
         self._select_inf_verts_action.triggered.connect(self.select_inf_verts_triggered.emit)
 
-        self._lock_infs_action = QtWidgets.QAction(self)
+        self._lock_infs_action = QAction(self)
         self._lock_infs_action.setText("Lock influences (space)")
         self._lock_infs_action.triggered.connect(partial(self._set_inf_locks_on_triggered, True))
 
-        self._unlock_infs_action = QtWidgets.QAction(self)
+        self._unlock_infs_action = QAction(self)
         self._unlock_infs_action.setText("Unlock influences (space)")
         self._unlock_infs_action.triggered.connect(partial(self._set_inf_locks_on_triggered, False))
 
-        self._add_infs_to_verts_action = QtWidgets.QAction(self)
+        self._add_infs_to_verts_action = QAction(self)
         self._add_infs_to_verts_action.setText("Add influences to vertexes")
         self._add_infs_to_verts_action.triggered.connect(self.add_infs_to_verts_triggered.emit)
 
-        self._header_context_menu = QtWidgets.QMenu(parent=self)
+        self._header_context_menu = QMenu(parent=self)
         self._header_context_menu.addAction(self._display_inf_action)
         self._header_context_menu.addSeparator()
         self._header_context_menu.addAction(self._select_infs_action)
@@ -68,12 +64,12 @@ class InfListView(QtWidgets.QListView):
         self._header_context_menu.addSeparator()
         self._header_context_menu.addAction(self._add_infs_to_verts_action)
 
-        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._on_context_requested)
 
     def mousePressEvent(self, event):
-        QtWidgets.QListView.mousePressEvent(self, event)
-        if event.button() == QtCore.Qt.MiddleButton:
+        QListView.mousePressEvent(self, event)
+        if event.button() == Qt.MiddleButton:
             self._display_current_inf()
     
     def keyPressEvent(self, event):
@@ -88,7 +84,7 @@ class InfListView(QtWidgets.QListView):
             if infs:
                 self.toggle_locks_triggered.emit(infs)
         else:
-            QtWidgets.QListView.keyPressEvent(self, event)
+            QListView.keyPressEvent(self, event)
 
     def _on_double_clicked(self, *args):
         self._select_current_infs()
@@ -182,10 +178,10 @@ class InfListView(QtWidgets.QListView):
             self.apply_filter(self._last_filter)
 
 
-class InfListModel(QtGui.QStandardItemModel):
+class InfListModel(QStandardItemModel):
     
     def __init__(self, editor_inst, parent=None):
-        QtGui.QStandardItemModel.__init__(self, parent=parent)
+        QStandardItemModel.__init__(self, parent=parent)
         
         self._editor_inst = editor_inst
         self.hide_long_names = True
@@ -193,15 +189,15 @@ class InfListModel(QtGui.QStandardItemModel):
         self._lock_icon = utils.load_pixmap("inf_view/lock.png", height=24)
         self._joint_icon = utils.load_pixmap("inf_view/joint.png", height=24)
 
-        self._size_hint = QtCore.QSize(1, 30)
+        self._size_hint = QSize(1, 30)
 
-        self._text_color = QtGui.QColor(QtCore.Qt.white)
-        self._locked_text_color = QtGui.QColor(130, 130, 130)
-        self._active_inf_back_color = QtGui.QColor(0, 120, 180)
-        self._active_inf_text_color = QtGui.QColor(QtCore.Qt.black)
+        self._text_color = QColor(Qt.white)
+        self._locked_text_color = QColor(130, 130, 130)
+        self._active_inf_back_color = QColor(0, 120, 180)
+        self._active_inf_text_color = QColor(Qt.black)
     
     def data(self, index, role):
-        QtGui.QStandardItemModel.data(self, index, role)
+        QStandardItemModel.data(self, index, role)
         
         if not index.isValid():
             return
@@ -209,16 +205,16 @@ class InfListModel(QtGui.QStandardItemModel):
         item = self.itemFromIndex(index)
         inf_name = item.text()
         
-        if role == QtCore.Qt.DisplayRole:
+        if role == Qt.DisplayRole:
             # Show influence's name.
             if self.hide_long_names:
                 return inf_name.split("|")[-1]
             return inf_name
-        elif role == QtCore.Qt.BackgroundColorRole:
+        elif role == Qt.BackgroundColorRole:
             # Show color influence.
             if inf_name == self._editor_inst.color_inf:
                 return self._active_inf_back_color
-        elif role == QtCore.Qt.ForegroundRole:
+        elif role == Qt.ForegroundRole:
             # Show locked influences.
             if inf_name in self._editor_inst.obj.infs:
                 inf_index = self._editor_inst.obj.infs.index(inf_name)
@@ -228,9 +224,9 @@ class InfListModel(QtGui.QStandardItemModel):
                     else:
                         return self._locked_text_color
             return self._text_color
-        elif role == QtCore.Qt.SizeHintRole:
+        elif role == Qt.SizeHintRole:
             return self._size_hint
-        elif role == QtCore.Qt.DecorationRole:
+        elif role == Qt.DecorationRole:
             icon = self._joint_icon
 
             if inf_name in self._editor_inst.obj.infs:
@@ -240,5 +236,5 @@ class InfListModel(QtGui.QStandardItemModel):
                     icon = self._lock_icon
 
             return icon
-        elif role == QtCore.Qt.ToolTipRole:
+        elif role == Qt.ToolTipRole:
             return inf_name

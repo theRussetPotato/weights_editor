@@ -1,9 +1,9 @@
 from maya import cmds
 
-from PySide2 import QtWidgets
+from weights_editor_tool.widgets.widgets_utils import *
 
 
-class CommandLockInfs(QtWidgets.QUndoCommand):
+class CommandLockInfs(QUndoCommand):
     """
     Command to toggle influence locks.
 

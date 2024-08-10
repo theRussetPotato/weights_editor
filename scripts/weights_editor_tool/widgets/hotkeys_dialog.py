@@ -1,71 +1,68 @@
 from itertools import combinations
 
-from PySide2 import QtCore
-from PySide2 import QtGui
-from PySide2 import QtWidgets
-
 from weights_editor_tool import weights_editor_utils as utils
 from weights_editor_tool.classes.hotkey import Hotkey
+from weights_editor_tool.widgets.widgets_utils import *
 
 
-class HotkeysDialog(QtWidgets.QDialog):
+class HotkeysDialog(QDialog):
 
     def __init__(self, hotkeys, parent=None):
-        QtWidgets.QDialog.__init__(self, parent=parent)
+        QDialog.__init__(self, parent=parent)
 
         self._hotkey_edits = []
 
         self._create_gui(hotkeys)
 
     def _create_gui(self, hotkeys):
-        self._menu_bar = QtWidgets.QMenuBar(self)
-        self._menu_bar.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        self._menu_bar = QMenuBar(self)
+        self._menu_bar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        self._settings_menu = QtWidgets.QMenu("&Tool settings", parent=self)
+        self._settings_menu = QMenu("&Tool settings", parent=self)
         self._menu_bar.addMenu(self._settings_menu)
 
-        self._reset_to_defaults_action = QtWidgets.QAction("Reset to defaults", self)
+        self._reset_to_defaults_action = QAction("Reset to defaults", self)
         self._reset_to_defaults_action.triggered.connect(self._reset_to_defaults_on_triggered)
         self._settings_menu.addAction(self._reset_to_defaults_action)
 
-        self._main_layout = QtWidgets.QVBoxLayout()
+        self._main_layout = QVBoxLayout()
         self._main_layout.addWidget(self._menu_bar)
 
         for hotkey in hotkeys:
-            label = QtWidgets.QLabel(hotkey.caption, parent=self)
+            label = QLabel(hotkey.caption, parent=self)
             label.setFixedWidth(150)
 
             key_edit = HotkeyEdit(hotkey.copy(), parent=self)
-            key_edit.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+            key_edit.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
             self._hotkey_edits.append(key_edit)
 
-            hotkey_layout = QtWidgets.QHBoxLayout()
+            hotkey_layout = QHBoxLayout()
             hotkey_layout.addWidget(label)
             hotkey_layout.addWidget(key_edit)
             hotkey_layout.addStretch()
 
             self._main_layout.addLayout(hotkey_layout)
 
-        self._apply_button = QtWidgets.QPushButton("Apply changes", parent=self)
+        self._apply_button = QPushButton("Apply changes", parent=self)
         self._apply_button.clicked.connect(self._accept_on_clicked)
 
-        self._cancel_button = QtWidgets.QPushButton("Cancel", parent=self)
+        self._cancel_button = QPushButton("Cancel", parent=self)
         self._cancel_button.clicked.connect(self.reject)
 
-        self._buttons_layout = QtWidgets.QHBoxLayout()
+        self._buttons_layout = QHBoxLayout()
         self._buttons_layout.addWidget(self._apply_button)
         self._buttons_layout.addWidget(self._cancel_button)
 
-        self._main_frame = QtWidgets.QFrame(parent=self)
+        self._main_frame = QFrame(parent=self)
         self._main_frame.setLayout(self._main_layout)
 
-        self._scroll_area = QtWidgets.QScrollArea(parent=self)
-        self._scroll_area.setFocusPolicy(QtCore.Qt.NoFocus)
+        self._scroll_area = QScrollArea(parent=self)
+        self._scroll_area.setFocusPolicy(Qt.NoFocus)
         self._scroll_area.setStyleSheet("QScrollArea {border: none;}")
         self._scroll_area.setWidget(self._main_frame)
         self._scroll_area.setWidgetResizable(True)
 
-        self._tooltip_label = QtWidgets.QLabel(
+        self._tooltip_label = QLabel(
             "These hotkeys will temporarily override your native hotkeys until the tool is closed.",
             parent=self)
         self._tooltip_label.setWordWrap(True)
@@ -76,7 +73,7 @@ class HotkeysDialog(QtWidgets.QDialog):
             }
         """)
 
-        self._menu_layout = QtWidgets.QVBoxLayout()
+        self._menu_layout = QVBoxLayout()
         self._menu_layout.setContentsMargins(0, 0, 0, 0)
         self._menu_layout.addWidget(self._menu_bar)
         self._menu_layout.addWidget(self._tooltip_label)
@@ -117,14 +114,14 @@ class HotkeysDialog(QtWidgets.QDialog):
             utils.show_error_msg("Error!", str(err), self.parent())
 
 
-class HotkeyEdit(QtWidgets.QLineEdit):
+class HotkeyEdit(QLineEdit):
 
-    key_pressed = QtCore.Signal(QtWidgets.QLineEdit, QtGui.QKeyEvent)
+    key_pressed = Signal(QLineEdit, QKeyEvent)
 
     def __init__(self, hotkey, parent=None):
         self.hotkey = hotkey
 
-        QtWidgets.QLineEdit.__init__(self, self.hotkey.key_to_string(), parent=parent)
+        QLineEdit.__init__(self, self.hotkey.key_to_string(), parent=parent)
 
     def keyPressEvent(self, key_event):
         if not key_event.text():

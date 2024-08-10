@@ -18,7 +18,6 @@ import os
 import copy
 import json
 import traceback
-import shiboken2
 import webbrowser
 from functools import partial
 
@@ -26,10 +25,7 @@ from maya import cmds
 from maya import mel
 from maya import OpenMaya
 
-from PySide2 import QtGui
-from PySide2 import QtCore
-from PySide2 import QtWidgets
-from PySide2 import QtNetwork
+from weights_editor_tool.widgets.widgets_utils import *
 
 from weights_editor_tool import constants
 from weights_editor_tool.enums import ColorTheme, WeightOperation, SmoothOperation, Hotkeys
@@ -47,7 +43,7 @@ from weights_editor_tool.widgets import presets_dialog
 from weights_editor_tool.widgets import about_dialog
 
 
-class WeightsEditor(QtWidgets.QWidget):
+class WeightsEditor(QWidget):
 
     version = "2.3.2"
     instance = None
@@ -58,17 +54,17 @@ class WeightsEditor(QtWidgets.QWidget):
         if parent is None:
             parent = utils.get_maya_window()
 
-        QtWidgets.QWidget.__init__(self, parent=parent)
+        QWidget.__init__(self, parent=parent)
 
         self._del_prev_instance()
         self.__class__.instance = self
 
         self.setWindowIcon(utils.load_pixmap("interface/icon.png"))
-        self.setWindowFlags(QtCore.Qt.Window)
-        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        self.setWindowFlags(Qt.Window)
+        self.setAttribute(Qt.WA_DeleteOnClose)
         self.setObjectName("weightsEditor")
         
-        self._undo_stack = QtWidgets.QUndoStack(parent=self)
+        self._undo_stack = QUndoStack(parent=self)
         self._undo_stack.setUndoLimit(30)
         self._copied_vertex = None
         self._in_component_mode = utils.is_in_component_mode()
@@ -148,9 +144,9 @@ class WeightsEditor(QtWidgets.QWidget):
         Creates all interface objects.
         """
 
-        icon_size = QtCore.QSize(13, 13)
+        icon_size = QSize(13, 13)
 
-        win_color = self.palette().color(QtGui.QPalette.Normal, QtGui.QPalette.Window)
+        win_color = self.palette().color(QPalette.Normal, QPalette.Window)
         preset_hover_color = win_color.lighter(130)
 
         self.setStyleSheet("""
@@ -262,99 +258,99 @@ class WeightsEditor(QtWidgets.QWidget):
     #
     # MENU BAR
     #
-        self._menu_bar = QtWidgets.QMenuBar(parent=self)
+        self._menu_bar = QMenuBar(parent=self)
 
-        self._options_menu = QtWidgets.QMenu("&Tool settings", parent=self)
+        self._options_menu = QMenu("&Tool settings", parent=self)
         self._menu_bar.addMenu(self._options_menu)
 
-        self._view_separator = QtWidgets.QAction("[ Weights list / table view ]", self)
+        self._view_separator = QAction("[ Weights list / table view ]", self)
         self._view_separator.setEnabled(False)
         self._options_menu.addAction(self._view_separator)
 
-        self._auto_update_table_action = QtWidgets.QAction("Auto-update view when selecting in viewport", self)
+        self._auto_update_table_action = QAction("Auto-update view when selecting in viewport", self)
         self._auto_update_table_action.setCheckable(True)
         self._auto_update_table_action.setChecked(True)
         self._auto_update_table_action.triggered.connect(self._auto_update_on_toggled)
         self._options_menu.addAction(self._auto_update_table_action)
 
-        self._auto_select_infs_action = QtWidgets.QAction("Auto-select cells from active influence", self)
+        self._auto_select_infs_action = QAction("Auto-select cells from active influence", self)
         self._auto_select_infs_action.setCheckable(True)
         self._auto_select_infs_action.setChecked(True)
         self._options_menu.addAction(self._auto_select_infs_action)
 
-        self._table_view_separator = QtWidgets.QAction("[ Table view ]", self)
+        self._table_view_separator = QAction("[ Table view ]", self)
         self._table_view_separator.setEnabled(False)
         self._options_menu.addAction(self._table_view_separator)
 
-        self.auto_select_vertex_action = QtWidgets.QAction("Auto-select vertexes when selecting cells", self)
+        self.auto_select_vertex_action = QAction("Auto-select vertexes when selecting cells", self)
         self.auto_select_vertex_action.setCheckable(True)
         self._options_menu.addAction(self.auto_select_vertex_action)
 
-        self._set_limit_action = QtWidgets.QAction("Set max row limit", self)
+        self._set_limit_action = QAction("Set max row limit", self)
         self._set_limit_action.triggered.connect(self._set_limit_on_triggered)
         self._options_menu.addAction(self._set_limit_action)
 
-        self._color_separator = QtWidgets.QAction("[ Settings ]", self)
+        self._color_separator = QAction("[ Settings ]", self)
         self._color_separator.setEnabled(False)
         self._options_menu.addAction(self._color_separator)
 
         self._color_sub_menu = self._options_menu.addMenu("Switch influence color style")
 
-        self._max_color_action = QtWidgets.QAction("3dsMax theme", self)
+        self._max_color_action = QAction("3dsMax theme", self)
         self._max_color_action.setCheckable(True)
         self._max_color_action.setChecked(True)
         self._max_color_action.triggered.connect(partial(self._switch_color_on_clicked, ColorTheme.Max))
         self._color_sub_menu.addAction(self._max_color_action)
 
-        self._maya_color_action = QtWidgets.QAction("Maya theme", self)
+        self._maya_color_action = QAction("Maya theme", self)
         self._maya_color_action.setCheckable(True)
         self._maya_color_action.triggered.connect(partial(self._switch_color_on_clicked, ColorTheme.Maya))
         self._color_sub_menu.addAction(self._maya_color_action)
 
-        self._softimage_color_action = QtWidgets.QAction("Softimage theme", self)
+        self._softimage_color_action = QAction("Softimage theme", self)
         self._softimage_color_action.setCheckable(True)
         self._softimage_color_action.triggered.connect(partial(self._switch_color_on_clicked, ColorTheme.Softimage))
         self._color_sub_menu.addAction(self._softimage_color_action)
 
-        self._max_infs_color_action = QtWidgets.QAction("Maximum influences theme", self)
+        self._max_infs_color_action = QAction("Maximum influences theme", self)
         self._max_infs_color_action.setCheckable(True)
         self._max_infs_color_action.triggered.connect(partial(self._switch_color_on_clicked, ColorTheme.MaximumInfluences))
         self._color_sub_menu.addAction(self._max_infs_color_action)
 
-        self._hide_long_names_action = QtWidgets.QAction("Hide long names", self)
+        self._hide_long_names_action = QAction("Hide long names", self)
         self._hide_long_names_action.setCheckable(True)
         self._hide_long_names_action.setChecked(True)
         self._hide_long_names_action.toggled.connect(self._hide_long_names_on_triggered)
         self._options_menu.addAction(self._hide_long_names_action)
 
-        self._delete_skin_on_export_all_action = QtWidgets.QAction("Delete skinClusters on `Export all`", self)
+        self._delete_skin_on_export_all_action = QAction("Delete skinClusters on `Export all`", self)
         self._delete_skin_on_export_all_action.setCheckable(True)
         self._delete_skin_on_export_all_action.setChecked(True)
         self._options_menu.addAction(self._delete_skin_on_export_all_action)
 
         self._prefs_menu = self._menu_bar.addMenu("&Preferences")
 
-        self._enable_hotkeys_action = QtWidgets.QAction("Enable hotkeys", self)
+        self._enable_hotkeys_action = QAction("Enable hotkeys", self)
         self._enable_hotkeys_action.setCheckable(True)
         self._enable_hotkeys_action.setChecked(True)
         self._enable_hotkeys_action.toggled.connect(self._hotkeys_on_toggled)
         self._prefs_menu.addAction(self._enable_hotkeys_action)
 
-        self._launch_hotkeys_action = QtWidgets.QAction("Edit hotkeys", self)
+        self._launch_hotkeys_action = QAction("Edit hotkeys", self)
         self._launch_hotkeys_action.triggered.connect(self._launch_hotkeys_on_clicked)
         self._prefs_menu.addAction(self._launch_hotkeys_action)
 
-        self._launch_presets_action = QtWidgets.QAction("Edit preset buttons", self)
+        self._launch_presets_action = QAction("Edit preset buttons", self)
         self._launch_presets_action.triggered.connect(self._launch_presets_on_clicked)
         self._prefs_menu.addAction(self._launch_presets_action)
 
-        self._about_action = QtWidgets.QAction("About this tool", self)
+        self._about_action = QAction("About this tool", self)
         self._about_action.triggered.connect(self._about_on_triggered)
 
-        self._check_for_updates_action = QtWidgets.QAction("Check for updates", self)
+        self._check_for_updates_action = QAction("Check for updates", self)
         self._check_for_updates_action.triggered.connect(self._fetch_latest_tool_version)
 
-        self._github_page_action = QtWidgets.QAction("Github page", self)
+        self._github_page_action = QAction("Github page", self)
         self._github_page_action.triggered.connect(self._github_page_on_triggered)
 
         self._about_menu = self._menu_bar.addMenu("&About")
@@ -378,7 +374,7 @@ class WeightsEditor(QtWidgets.QWidget):
                 self._show_scale_button, self._show_set_button, self._show_inf_button]:
             widget.setMinimumWidth(25)
             widget.setMaximumWidth(150)
-            widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+            widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             widget.setCheckable(True)
             widget.setChecked(True)
 
@@ -396,19 +392,19 @@ class WeightsEditor(QtWidgets.QWidget):
              self._show_scale_button,
              self._show_set_button,
              self._show_inf_button],
-            QtCore.Qt.Horizontal,
+            Qt.Horizontal,
             spacing=5)
 
-        self._pick_obj_label = QtWidgets.QLabel("Object:")
+        self._pick_obj_label = QLabel("Object:")
 
-        self._pick_obj_button = QtWidgets.QPushButton()
+        self._pick_obj_button = QPushButton()
         self._pick_obj_button.setToolTip("Switches to selected mesh for editing.")
         self._pick_obj_button.clicked.connect(self._pick_selected_obj)
 
         self._refresh_button = self._create_button(
             "", "interface/refresh.png",
             tool_tip="Refreshes the skin's data.",
-            icon_size=QtCore.QSize(22, 22),
+            icon_size=QSize(22, 22),
             click_event=self._refresh_on_clicked)
         self._refresh_button.setMinimumWidth(18)
         self._refresh_button.setFixedHeight(24)
@@ -421,10 +417,10 @@ class WeightsEditor(QtWidgets.QWidget):
              3,
              "stretch",
              self._show_layout],
-             QtCore.Qt.Horizontal,
+             Qt.Horizontal,
              margins=[5, 5, 5, 5])
 
-        self._smooth_strength_spinbox = QtWidgets.QDoubleSpinBox(value=1)
+        self._smooth_strength_spinbox = QDoubleSpinBox(value=1)
         self._smooth_strength_spinbox.setFixedWidth(70)
         self._smooth_strength_spinbox.setToolTip("Smooth's strength.")
         self._smooth_strength_spinbox.setDecimals(2)
@@ -445,7 +441,7 @@ class WeightsEditor(QtWidgets.QWidget):
         if not hasattr(cmds, "brSmoothWeightsContext"):
             self._smooth_br_button.setEnabled(False)
 
-        self._prune_by_value_spinbox = QtWidgets.QDoubleSpinBox(value=0.1)
+        self._prune_by_value_spinbox = QDoubleSpinBox(value=0.1)
         self._prune_by_value_spinbox.setFixedWidth(70)
         self._prune_by_value_spinbox.setToolTip("Prune any influence below this value.")
         self._prune_by_value_spinbox.setDecimals(3)
@@ -457,7 +453,7 @@ class WeightsEditor(QtWidgets.QWidget):
             click_event=self._prune_by_value_on_clicked)
         self._prune_by_value_button.setObjectName("pruneButton")
 
-        self._prune_max_infs_spinbox = QtWidgets.QSpinBox(value=4)
+        self._prune_max_infs_spinbox = QSpinBox(value=4)
         self._prune_max_infs_spinbox.setFixedWidth(70)
         self._prune_max_infs_spinbox.setToolTip("Prune selected vertexes to this number of influences.")
         self._prune_max_infs_spinbox.setMinimum(1)
@@ -478,7 +474,7 @@ class WeightsEditor(QtWidgets.QWidget):
              15,
              self._prune_max_infs_spinbox,
              self._prune_max_infs_button],
-            QtCore.Qt.Horizontal)
+            Qt.Horizontal)
 
         self._mirror_skin_button = self._create_button(
             "Mirror", "interface/mirror.png",
@@ -491,23 +487,23 @@ class WeightsEditor(QtWidgets.QWidget):
             click_event=self._mirror_all_skin_on_clicked)
         self._mirror_all_skin_button.setObjectName("mirrorButton")
 
-        self._mirror_mode = QtWidgets.QComboBox()
+        self._mirror_mode = QComboBox()
         self._mirror_mode.setToolTip("Mirror axis")
-        self._mirror_mode.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self._mirror_mode.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._mirror_mode.setMinimumWidth(35)
         self._mirror_mode.setMaximumWidth(50)
         self._mirror_mode.addItems(["-XY", "XY", "-YZ", "YZ", "-XZ", "XZ"])
 
-        self._mirror_surface = QtWidgets.QComboBox()
+        self._mirror_surface = QComboBox()
         self._mirror_surface.setToolTip("Mirror surface association")
-        self._mirror_surface.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self._mirror_surface.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._mirror_surface.setMinimumWidth(35)
         self._mirror_surface.setMaximumWidth(100)
         self._mirror_surface.addItems(["Closest Point", "Ray Cast", "Closest Component"])
 
-        self._mirror_inf = QtWidgets.QComboBox()
+        self._mirror_inf = QComboBox()
         self._mirror_inf.setToolTip("Mirror influence association")
-        self._mirror_inf.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self._mirror_inf.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._mirror_inf.setMinimumWidth(35)
         self._mirror_inf.setMaximumWidth(100)
         self._mirror_inf.addItems(["Label", "Closest Point", "Closest Bone", "Name", "One To One"])
@@ -533,7 +529,7 @@ class WeightsEditor(QtWidgets.QWidget):
              15,
              self._copy_vertex_button,
              self._paste_vertex_button],
-            QtCore.Qt.Horizontal,
+            Qt.Horizontal,
             margins=[0, 0, 0, 0])
 
         self._export_weights_button = self._create_button(
@@ -585,17 +581,17 @@ class WeightsEditor(QtWidgets.QWidget):
              self._import_all_weights_button,
              15,
              self._flood_to_closest_button],
-            QtCore.Qt.Horizontal)
+            Qt.Horizontal)
 
         self._weight_layout = utils.wrap_layout(
             [self._prune_layout,
              self._mirror_layout,
              self._import_layout],
-            QtCore.Qt.Vertical,
+            Qt.Vertical,
             margins=[0, 0, 0, 0],
             spacing=5)
 
-        self._weight_utils_frame = QtWidgets.QWidget()
+        self._weight_utils_frame = QWidget()
         self._weight_utils_frame.setLayout(self._weight_layout)
 
         self._add_layout, self._add_widget, self._add_spinbox = \
@@ -618,7 +614,7 @@ class WeightsEditor(QtWidgets.QWidget):
                 "Set:")
 
         # Setup table
-        self._limit_warning_label = QtWidgets.QLabel(parent=self)
+        self._limit_warning_label = QLabel(parent=self)
         self._limit_warning_label.setObjectName("warningLabel")
         self._limit_warning_label.setWordWrap(True)
         self._limit_warning_label.hide()
@@ -649,7 +645,7 @@ class WeightsEditor(QtWidgets.QWidget):
         self._settings_layout = utils.wrap_layout(
             [self._show_all_button,
              self._hide_colors_button],
-            QtCore.Qt.Horizontal)
+            Qt.Horizontal)
 
         # Undo buttons
         self._undo_button = self._create_button(
@@ -665,7 +661,7 @@ class WeightsEditor(QtWidgets.QWidget):
         self._undo_layout = utils.wrap_layout(
             [self._undo_button,
              self._redo_button],
-            QtCore.Qt.Horizontal)
+            Qt.Horizontal)
 
         widgets = [
             self._show_all_button,
@@ -676,16 +672,16 @@ class WeightsEditor(QtWidgets.QWidget):
         for button in widgets:
             button.setMinimumWidth(10)
 
-        self._update_label = QtWidgets.QLabel()
+        self._update_label = QLabel()
         self._update_label.setObjectName("updateLabel")
         self._update_label.setOpenExternalLinks(True)
 
         self._update_layout = utils.wrap_layout(
             [self._update_label],
-            QtCore.Qt.Horizontal,
+            Qt.Horizontal,
             margins=[3, 0, 3, 0])
 
-        self._update_frame = QtWidgets.QFrame()
+        self._update_frame = QFrame()
         self._update_frame.setObjectName("updateFrame")
         self._update_frame.setLayout(self._update_layout)
         self._update_frame.hide()
@@ -699,19 +695,19 @@ class WeightsEditor(QtWidgets.QWidget):
              self._weights_table,
              self._settings_layout,
              self._undo_layout],
-            QtCore.Qt.Vertical,
+            Qt.Vertical,
             spacing=3)
 
-        self._central_widget = QtWidgets.QWidget()
+        self._central_widget = QWidget()
         self._central_widget.setLayout(self._central_layout)
 
     #
     # INFLUENCE WIDGET
     #
 
-        self._inf_widget = QtWidgets.QWidget()
+        self._inf_widget = QWidget()
 
-        self._inf_filter_edit = QtWidgets.QLineEdit()
+        self._inf_filter_edit = QLineEdit()
         self._inf_filter_edit.setPlaceholderText("Filter list by names (use * as a wildcard)")
         self._inf_filter_edit.textChanged.connect(self._apply_filter_to_inf_list)
 
@@ -722,13 +718,13 @@ class WeightsEditor(QtWidgets.QWidget):
         self.inf_list.select_inf_verts_triggered.connect(self._select_by_infs_on_clicked)
         self.inf_list.add_infs_to_verts_triggered.connect(self._add_inf_to_vert_on_clicked)
 
-        self._add_inf_to_vert_button = QtWidgets.QPushButton("Add Inf to Verts")
+        self._add_inf_to_vert_button = QPushButton("Add Inf to Verts")
         self._add_inf_to_vert_button.setIconSize(icon_size)
         self._add_inf_to_vert_button.setIcon(utils.load_pixmap("interface/add_inf.png"))
         self._add_inf_to_vert_button.setToolTip("Adds the selected influence to all selected vertexes.")
         self._add_inf_to_vert_button.clicked.connect(self._add_inf_to_vert_on_clicked)
 
-        self._select_by_infs_button = QtWidgets.QPushButton("Select Inf's Verts")
+        self._select_by_infs_button = QPushButton("Select Inf's Verts")
         self._select_by_infs_button.setIconSize(icon_size)
         self._select_by_infs_button.setIcon(utils.load_pixmap("interface/select.png"))
         self._select_by_infs_button.setToolTip("Selects all vertexes that is effected by the selected influences.")
@@ -739,16 +735,16 @@ class WeightsEditor(QtWidgets.QWidget):
              self.inf_list,
              self._add_inf_to_vert_button,
              self._select_by_infs_button],
-            QtCore.Qt.Vertical)
+            Qt.Vertical)
         self._inf_widget.setLayout(self._inf_layout)
 
-        self._splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        self._splitter = QSplitter(Qt.Horizontal)
         self._splitter.addWidget(self._central_widget)
         self._splitter.addWidget(self._inf_widget)
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 0)
 
-        self._main_layout = QtWidgets.QVBoxLayout()
+        self._main_layout = QVBoxLayout()
         self._main_layout.setSpacing(3)
         self._main_layout.setMenuBar(self._menu_bar)
         self._main_layout.addWidget(self._update_frame, stretch=0)
@@ -757,7 +753,7 @@ class WeightsEditor(QtWidgets.QWidget):
         self._main_layout.addWidget(self._splitter, stretch=1)
         self.setLayout(self._main_layout)
 
-        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.setFocusPolicy(Qt.StrongFocus)
         self._update_window_title()
         self.resize(1200, 1000)
 
@@ -771,12 +767,12 @@ class WeightsEditor(QtWidgets.QWidget):
             title += " - {obj}".format(obj=self.obj.short_name())
         self.setWindowTitle(title)
 
-    def _create_button(self, caption, img_name, icon_size=QtCore.QSize(13, 13), tool_tip=None, click_event=None):
-        button = QtWidgets.QPushButton(caption)
+    def _create_button(self, caption, img_name, icon_size=QSize(13, 13), tool_tip=None, click_event=None):
+        button = QPushButton(caption)
         button.setIconSize(icon_size)
         button.setIcon(utils.load_pixmap(img_name))
         button.setMinimumWidth(50)
-        button.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         if tool_tip is not None:
             button.setToolTip(tool_tip)
@@ -787,7 +783,7 @@ class WeightsEditor(QtWidgets.QWidget):
         return button
 
     def _create_preset_layout(self, spinbox_min, spinbox_max, spinbox_steps, spinbox_callback, caption, suffix=""):
-        label = QtWidgets.QLabel(caption)
+        label = QLabel(caption)
         label.setFixedWidth(30)
 
         spinbox = custom_double_spinbox.CustomDoubleSpinbox()
@@ -802,11 +798,11 @@ class WeightsEditor(QtWidgets.QWidget):
 
         layout = utils.wrap_layout(
             [label, spinbox],
-            QtCore.Qt.Horizontal,
+            Qt.Horizontal,
             margins=[5, 3, 1, 3])
-        layout.setAlignment(QtCore.Qt.AlignLeft)
+        layout.setAlignment(Qt.AlignLeft)
 
-        widget = QtWidgets.QWidget()
+        widget = QWidget()
         widget.setLayout(layout)
 
         return layout, widget, spinbox
@@ -822,10 +818,10 @@ class WeightsEditor(QtWidgets.QWidget):
 
         for value in values:
             text = "".join([str(value), suffix])
-            preset_button = QtWidgets.QPushButton(text, parent=self)
+            preset_button = QPushButton(text, parent=self)
             preset_button.setMaximumWidth(60)
             preset_button.setSizePolicy(
-                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+                QSizePolicy.Expanding, QSizePolicy.Preferred)
             preset_button.clicked.connect(partial(preset_callback, value))
             preset_button.setToolTip("{0} by {1}".format(tooltip, text))
 
@@ -850,12 +846,12 @@ class WeightsEditor(QtWidgets.QWidget):
 
     def _fetch_latest_tool_version(self):
         try:
-            url = QtCore.QUrl(constants.GITHUB_LATEST_RELEASE)
+            url = QUrl(constants.GITHUB_LATEST_RELEASE)
 
-            request = QtNetwork.QNetworkRequest()
+            request = QNetworkRequest()
             request.setUrl(url)
 
-            manager = QtNetwork.QNetworkAccessManager()
+            manager = QNetworkAccessManager()
 
             response = manager.get(request)
             response.finished.connect(
@@ -877,7 +873,7 @@ class WeightsEditor(QtWidgets.QWidget):
                     ver=latest_version, url=data["html_url"]))
             self._update_frame.show()
         else:
-            QtWidgets.QMessageBox.information(self, "All good!", "Everything is up to date.")
+            QMessageBox.information(self, "All good!", "Everything is up to date.")
 
     def _update_tooltips(self):
         """
@@ -919,7 +915,7 @@ class WeightsEditor(QtWidgets.QWidget):
                 self.toggle_inf_lock_key_codes.append(hotkey.key_code())
             else:
                 shortcut = utils.create_shortcut(
-                    QtGui.QKeySequence(hotkey.key_code()), hotkey.func)
+                    QKeySequence(hotkey.key_code()), hotkey.func)
 
                 if shortcut:
                     self.__class__.shortcuts.append(shortcut)
@@ -1013,7 +1009,7 @@ class WeightsEditor(QtWidgets.QWidget):
         data = self._fetch_settings()
 
         if "width" in data and "height" in data:
-            self.resize(QtCore.QSize(data["width"], data["height"]))
+            self.resize(QSize(data["width"], data["height"]))
 
         if "splitter.sizes" in data:
             self._splitter.setSizes(data["splitter.sizes"])
@@ -1369,9 +1365,9 @@ class WeightsEditor(QtWidgets.QWidget):
             self.inf_list.list_model.clear()
 
             for i, inf in enumerate(sorted(self.obj.infs)):
-                item = QtGui.QStandardItem(inf)
+                item = QStandardItem(inf)
                 item.setToolTip(inf)
-                item.setSizeHint(QtCore.QSize(1, 30))
+                item.setSizeHint(QSize(1, 30))
                 self.inf_list.list_model.appendRow(item)
 
             self._apply_filter_to_inf_list()
@@ -1381,10 +1377,10 @@ class WeightsEditor(QtWidgets.QWidget):
 
     def _update_inf_filter_items(self):
         items = self.inf_list.get_displayed_items()
-        completer = QtWidgets.QCompleter(items, self)
-        completer.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
-        completer.setCompletionMode(QtWidgets.QCompleter.PopupCompletion)
-        completer.setFilterMode(QtCore.Qt.MatchContains)
+        completer = QCompleter(items, self)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setCompletionMode(QCompleter.PopupCompletion)
+        completer.setFilterMode(Qt.MatchContains)
         self._inf_filter_edit.setCompleter(completer)
 
     def _apply_filter_to_inf_list(self):
@@ -1552,7 +1548,7 @@ class WeightsEditor(QtWidgets.QWidget):
         if key_code in self.toggle_inf_lock_key_codes:
             self._toggle_selected_inf_locks()
         else:
-            QtWidgets.QTableView.keyPressEvent(self.sender(), event)
+            QTableView.keyPressEvent(self.sender(), event)
     
     def _refresh_on_clicked(self):
         self._update_obj(self.obj.name)
@@ -1566,8 +1562,8 @@ class WeightsEditor(QtWidgets.QWidget):
             self._remove_selection_callback()
 
     def _set_limit_on_triggered(self):
-        dialog = QtWidgets.QInputDialog(parent=self)
-        dialog.setInputMode(QtWidgets.QInputDialog.IntInput)
+        dialog = QInputDialog(parent=self)
+        dialog.setInputMode(QInputDialog.IntInput)
         dialog.setIntRange(0, 99999)
         dialog.setIntValue(self._weights_table.table_model.max_display_count)
         dialog.setWindowTitle("Enter max row limit")
@@ -1577,7 +1573,7 @@ class WeightsEditor(QtWidgets.QWidget):
             "a limit can be put in place. (table view only)\n")
         dialog.exec_()
 
-        if dialog.result() == QtWidgets.QDialog.Accepted:
+        if dialog.result() == QDialog.Accepted:
             self._weights_table.begin_update()
             self._weights_table.table_model.max_display_count = dialog.intValue()
             self._weights_table.end_update()
@@ -1760,16 +1756,16 @@ class WeightsEditor(QtWidgets.QWidget):
 
     def _import_weights_on_clicked(self, use_world_positions):
         try:
-            msg_box = QtWidgets.QMessageBox(
-                QtWidgets.QMessageBox.Warning,
+            msg_box = QMessageBox(
+                QMessageBox.Warning,
                 "Undos will be lost",
                 "The tool's undo stack will reset and be lost.\n"
                 "Would you like to continue?")
 
-            msg_box.addButton(QtWidgets.QMessageBox.Cancel)
-            msg_box.addButton(QtWidgets.QMessageBox.Ok)
-            msg_box.setDefaultButton(QtWidgets.QMessageBox.Cancel)
-            if msg_box.exec_() == QtWidgets.QMessageBox.Cancel:
+            msg_box.addButton(QMessageBox.Cancel)
+            msg_box.addButton(QMessageBox.Ok)
+            msg_box.setDefaultButton(QMessageBox.Cancel)
+            if msg_box.exec_() == QMessageBox.Cancel:
                 return False
 
             status = self.obj.import_skin(world_space=use_world_positions)
@@ -1781,16 +1777,16 @@ class WeightsEditor(QtWidgets.QWidget):
 
     def _import_all_weights_on_clicked(self):
         try:
-            msg_box = QtWidgets.QMessageBox(
-                QtWidgets.QMessageBox.Warning,
+            msg_box = QMessageBox(
+                QMessageBox.Warning,
                 "Undos will be lost",
                 "The tool's undo stack will reset and be lost.\n"
                 "Would you like to continue?")
 
-            msg_box.addButton(QtWidgets.QMessageBox.Cancel)
-            msg_box.addButton(QtWidgets.QMessageBox.Ok)
-            msg_box.setDefaultButton(QtWidgets.QMessageBox.Cancel)
-            if msg_box.exec_() == QtWidgets.QMessageBox.Cancel:
+            msg_box.addButton(QMessageBox.Cancel)
+            msg_box.addButton(QMessageBox.Ok)
+            msg_box.setDefaultButton(QMessageBox.Cancel)
+            if msg_box.exec_() == QMessageBox.Cancel:
                 return False
 
             SkinnedObj.import_all_skins(False, True)

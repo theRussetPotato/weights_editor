@@ -1,12 +1,12 @@
 import copy
 
 from maya import cmds
-from PySide2 import QtWidgets
 
 from weights_editor_tool.widgets import weights_table_view
+from weights_editor_tool.widgets.widgets_utils import *
 
 
-class CommandEditWeights(QtWidgets.QUndoCommand):
+class CommandEditWeights(QUndoCommand):
     """
     Command to edit skin weights.
 

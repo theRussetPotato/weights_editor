@@ -1,7 +1,7 @@
-import sys
+import glob
 import os
 import random
-import glob
+import sys
 
 if sys.version_info < (3, 0):
     import cPickle
@@ -12,8 +12,7 @@ from maya import cmds
 from maya import OpenMaya
 from maya.api import OpenMaya as om2
 
-from PySide2 import QtGui
-from PySide2 import QtWidgets
+from weights_editor_tool.widgets.widgets_utils import *
 
 from weights_editor_tool import constants
 from weights_editor_tool.enums import ColorTheme
@@ -579,7 +578,7 @@ class SkinnedObj:
         hue_step = 360.0 / (len(infs))
 
         for i, inf in enumerate(infs):
-            color = QtGui.QColor()
+            color = QColor()
             color.setHsv(hue_step * i, sat, brightness)
             color.toRgb()
 

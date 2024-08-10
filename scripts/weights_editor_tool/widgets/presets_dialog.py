@@ -1,13 +1,10 @@
 from maya import cmds
 
-from PySide2 import QtCore
-from PySide2 import QtGui
-from PySide2 import QtWidgets
-
 from weights_editor_tool import weights_editor_utils as utils
+from weights_editor_tool.widgets.widgets_utils import *
 
 
-class PresetsDialog(QtWidgets.QDialog):
+class PresetsDialog(QDialog):
 
     Defaults = {
         "add": [-0.2, -0.1, -0.05, -0.01, 0.01, 0.05, 0.1, 0.2],
@@ -16,7 +13,7 @@ class PresetsDialog(QtWidgets.QDialog):
     }
 
     def __init__(self, add_presets, scale_presets, set_presets, parent=None):
-        QtWidgets.QDialog.__init__(self, parent=parent)
+        QDialog.__init__(self, parent=parent)
 
         self._add_presets = add_presets
         self._scale_presets = scale_presets
@@ -25,17 +22,17 @@ class PresetsDialog(QtWidgets.QDialog):
         self._create_gui()
 
     def _create_gui(self):
-        self._menu_bar = QtWidgets.QMenuBar(self)
-        self._menu_bar.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        self._menu_bar = QMenuBar(self)
+        self._menu_bar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        self._settings_menu = QtWidgets.QMenu("&Tool settings", parent=self)
+        self._settings_menu = QMenu("&Tool settings", parent=self)
         self._menu_bar.addMenu(self._settings_menu)
 
-        self._reset_to_defaults_action = QtWidgets.QAction("Reset to defaults", self)
+        self._reset_to_defaults_action = QAction("Reset to defaults", self)
         self._reset_to_defaults_action.triggered.connect(self._reset_to_defaults_on_triggered)
         self._settings_menu.addAction(self._reset_to_defaults_action)
 
-        self._tooltip_label = QtWidgets.QLabel(
+        self._tooltip_label = QLabel(
             "Enter numbers separated by commas to define which preset buttons to build",
             parent=self)
         self._tooltip_label.setWordWrap(True)
@@ -50,26 +47,26 @@ class PresetsDialog(QtWidgets.QDialog):
         self._scale_preset_widget = PresetWidget("Scale presets", (-100, 100), self._scale_presets, parent=self)
         self._set_preset_widget = PresetWidget("Set presets", (0, 1), self._set_presets, parent=self)
 
-        self._main_layout = QtWidgets.QVBoxLayout()
+        self._main_layout = QVBoxLayout()
         self._main_layout.addWidget(self._menu_bar)
         self._main_layout.addLayout(self._add_preset_widget.layout)
         self._main_layout.addLayout(self._scale_preset_widget.layout)
         self._main_layout.addLayout(self._set_preset_widget.layout)
 
-        self._apply_button = QtWidgets.QPushButton("Apply changes", parent=self)
+        self._apply_button = QPushButton("Apply changes", parent=self)
         self._apply_button.clicked.connect(self._accept_on_clicked)
 
-        self._cancel_button = QtWidgets.QPushButton("Cancel", parent=self)
+        self._cancel_button = QPushButton("Cancel", parent=self)
         self._cancel_button.clicked.connect(self.reject)
 
-        self._buttons_layout = QtWidgets.QHBoxLayout()
+        self._buttons_layout = QHBoxLayout()
         self._buttons_layout.addWidget(self._apply_button)
         self._buttons_layout.addWidget(self._cancel_button)
 
-        self._main_frame = QtWidgets.QFrame(parent=self)
+        self._main_frame = QFrame(parent=self)
         self._main_frame.setLayout(self._main_layout)
 
-        self._menu_layout = QtWidgets.QVBoxLayout()
+        self._menu_layout = QVBoxLayout()
         self._menu_layout.setContentsMargins(0, 0, 0, 0)
         self._menu_layout.addWidget(self._menu_bar)
         self._menu_layout.addWidget(self._tooltip_label)
@@ -109,7 +106,7 @@ class PresetWidget:
     def __init__(self, caption, min_max_range, values, parent=None):
         self.values = []
 
-        self._caption = QtWidgets.QLabel(caption, parent=parent)
+        self._caption = QLabel(caption, parent=parent)
         self._caption.setMinimumWidth(120)
         self._caption.setStyleSheet("""
             QLabel {
@@ -117,31 +114,31 @@ class PresetWidget:
             }
         """)
 
-        self._line_edit = QtWidgets.QLineEdit(parent=parent)
+        self._line_edit = QLineEdit(parent=parent)
         self._validator = CustomValidator(self._line_edit, min_max_range, parent=parent)
         self._validator.values_updated.connect(self._on_values_updated)
         self._line_edit.setText(self._validator.clean_up_items(values))
         self._line_edit.setPlaceholderText("No presets have been set")
         self._line_edit.setValidator(self._validator)
 
-        self._min_label = QtWidgets.QLabel("Min: {}".format(min_max_range[0]), parent=parent)
+        self._min_label = QLabel("Min: {}".format(min_max_range[0]), parent=parent)
         self._min_label.setMinimumWidth(50)
 
-        self._max_label = QtWidgets.QLabel("Max: {}".format(min_max_range[1]), parent=parent)
-        self._max_label.setAlignment(QtCore.Qt.AlignRight)
+        self._max_label = QLabel("Max: {}".format(min_max_range[1]), parent=parent)
+        self._max_label.setAlignment(Qt.AlignRight)
         self._max_label.setMinimumWidth(50)
 
         self._sub_layout = utils.wrap_layout(
             [self._min_label, self._line_edit, self._max_label],
-            QtCore.Qt.Horizontal,
+            Qt.Horizontal,
             margins=[20, 0, 20, 5])
 
-        self._sub_frame = QtWidgets.QWidget(parent=parent)
+        self._sub_frame = QWidget(parent=parent)
         self._sub_frame.setLayout(self._sub_layout)
 
         self.layout = utils.wrap_layout(
             [self._caption, self._sub_frame],
-            QtCore.Qt.Vertical)
+            Qt.Vertical)
 
         self.set_values(values)
 
@@ -153,12 +150,12 @@ class PresetWidget:
         self._line_edit.setText(self._validator.clean_up_items(values))
 
 
-class CustomValidator(QtGui.QValidator):
+class CustomValidator(QValidator):
 
-    values_updated = QtCore.Signal(list)
+    values_updated = Signal(list)
 
     def __init__(self, line_edit, min_max_range, parent=None):
-        QtGui.QValidator.__init__(self, parent)
+        QValidator.__init__(self, parent)
         self._line_edit = line_edit
         self._min_value = min_max_range[0]
         self._max_value = min_max_range[1]
@@ -176,14 +173,14 @@ class CustomValidator(QtGui.QValidator):
 
     def validate(self, txt, pos):
         if not txt:
-            return QtGui.QValidator.Acceptable, pos
+            return QValidator.Acceptable, pos
 
         valid_chars = ["-", ",", ".", " "]
         char = txt[pos - 1]
         if not char.isdigit() and char not in valid_chars:
-            return QtGui.QValidator.Invalid, pos
+            return QValidator.Invalid, pos
 
-        return QtGui.QValidator.Intermediate, pos
+        return QValidator.Intermediate, pos
 
     def fixup(self, txt):
         new_values = []

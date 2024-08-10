@@ -1,6 +1,5 @@
 import sys
 import os
-import shiboken2
 
 from maya import cmds
 from maya import mel
@@ -8,9 +7,7 @@ from maya import OpenMaya
 from maya import OpenMayaUI
 from maya import OpenMayaAnim
 
-from PySide2 import QtCore
-from PySide2 import QtGui
-from PySide2 import QtWidgets
+from weights_editor_tool.widgets.widgets_utils import *
 
 
 from weights_editor_tool import constants
@@ -22,24 +19,24 @@ if sys.version_info > (3, 0):
 
 
 def show_error_msg(title, msg, parent):
-    QtWidgets.QMessageBox.critical(parent, title, msg)
+    QMessageBox.critical(parent, title, msg)
 
 
 def get_maya_window():
     if not cmds.about(batch=True):
         ptr = OpenMayaUI.MQtUtil.mainWindow()
-        return shiboken2.wrapInstance(long(ptr), QtWidgets.QWidget)
+        return shiboken2.wrapInstance(long(ptr), QWidget)
 
 
 def load_pixmap(file_name, width=None, height=None):
     resources_dir = os.path.abspath(os.path.join(__file__, "..", "resources", "icons"))
-    pixmap = QtGui.QPixmap(os.path.join(resources_dir, file_name))
+    pixmap = QPixmap(os.path.join(resources_dir, file_name))
 
     if width is not None:
-        pixmap = pixmap.scaledToWidth(width, QtCore.Qt.SmoothTransformation)
+        pixmap = pixmap.scaledToWidth(width, Qt.SmoothTransformation)
 
     if height is not None:
-        pixmap = pixmap.scaledToHeight(height, QtCore.Qt.SmoothTransformation)
+        pixmap = pixmap.scaledToHeight(height, Qt.SmoothTransformation)
 
     return pixmap
 
@@ -56,26 +53,26 @@ def create_shortcut(key_sequence, callback):
     maya_window = get_maya_window()
 
     if maya_window:
-        shortcut = QtWidgets.QShortcut(key_sequence, maya_window)
-        shortcut.setContext(QtCore.Qt.ApplicationShortcut)
+        shortcut = QShortcut(key_sequence, maya_window)
+        shortcut.setContext(Qt.ApplicationShortcut)
         shortcut.activated.connect(callback)
         return shortcut
 
 
-def wrap_layout(widgets, orientation=QtCore.Qt.Vertical, spacing=None, margins=None, parent=None):
-    if orientation == QtCore.Qt.Horizontal:
-        new_layout = QtWidgets.QHBoxLayout()
+def wrap_layout(widgets, orientation=Qt.Vertical, spacing=None, margins=None, parent=None):
+    if orientation == Qt.Horizontal:
+        new_layout = QHBoxLayout()
     else:
-        new_layout = QtWidgets.QVBoxLayout()
+        new_layout = QVBoxLayout()
 
     for widget in widgets:
         if widget == "stretch":
             new_layout.addStretch()
         elif widget == "splitter":
-            frame = QtWidgets.QFrame(parent=parent)
+            frame = QFrame(parent=parent)
             frame.setStyleSheet("QFrame {background-color: rgb(50, 50, 50);}")
 
-            if orientation == QtCore.Qt.Vertical:
+            if orientation == Qt.Vertical:
                 frame.setFixedHeight(2)
             else:
                 frame.setFixedWidth(2)
@@ -84,7 +81,7 @@ def wrap_layout(widgets, orientation=QtCore.Qt.Vertical, spacing=None, margins=N
         elif type(widget) == int:
             new_layout.addSpacing(widget)
         else:
-            if QtCore.QObject.isWidgetType(widget):
+            if QObject.isWidgetType(widget):
                 new_layout.addWidget(widget)
             else:
                 new_layout.addLayout(widget)
@@ -211,7 +208,7 @@ def lerp_color(start_color, end_color, blend_value):
     r = start_color.red() + (end_color.red() - start_color.red()) * blend_value
     g = start_color.green() + (end_color.green() - start_color.green()) * blend_value
     b = start_color.blue() + (end_color.blue() - start_color.blue()) * blend_value
-    return QtGui.QColor(r, g, b)
+    return QColor(r, g, b)
 
 
 def extract_indexes(flatten_list):

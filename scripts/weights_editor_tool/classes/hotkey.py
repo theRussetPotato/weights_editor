@@ -1,5 +1,4 @@
-from PySide2 import QtCore
-from PySide2 import QtGui
+from weights_editor_tool.widgets.widgets_utils import *
 
 from weights_editor_tool.enums import Hotkeys
 
@@ -7,28 +6,28 @@ from weights_editor_tool.enums import Hotkeys
 class Hotkey:
 
     Defaults = {
-        Hotkeys.ToggleTableListViews: {"key": QtCore.Qt.Key_QuoteLeft, "ctrl": True},
-        Hotkeys.ShowUtilities: {"key": QtCore.Qt.Key_1, "ctrl": True},
-        Hotkeys.ShowAddPresets: {"key": QtCore.Qt.Key_2, "ctrl": True},
-        Hotkeys.ShowScalePresets: {"key": QtCore.Qt.Key_3, "ctrl": True},
-        Hotkeys.ShowSetPresets: {"key": QtCore.Qt.Key_4, "ctrl": True},
-        Hotkeys.ShowInfList: {"key": QtCore.Qt.Key_5, "ctrl": True},
-        Hotkeys.ShowInfColors: {"key": QtCore.Qt.Key_6, "ctrl": True},
-        Hotkeys.MirrorAll: {"key": QtCore.Qt.Key_M, "ctrl": True},
-        Hotkeys.Prune: {"key": QtCore.Qt.Key_P, "ctrl": True},
-        Hotkeys.PruneMaxInfs: {"key": QtCore.Qt.Key_P, "ctrl": True, "shift": True},
-        Hotkeys.RunSmooth: {"key": QtCore.Qt.Key_S, "ctrl": True, "shift": True},
-        Hotkeys.RunSmoothAllInfs: {"key": QtCore.Qt.Key_D, "ctrl": True, "shift": True},
-        Hotkeys.Undo: {"key": QtCore.Qt.Key_Z, "ctrl": True, "shift": True},
-        Hotkeys.Redo: {"key": QtCore.Qt.Key_X, "ctrl": True, "shift": True},
-        Hotkeys.GrowSelection: {"key": QtCore.Qt.Key_Greater},
-        Hotkeys.ShrinkSelection: {"key": QtCore.Qt.Key_Less},
-        Hotkeys.SelectEdgeLoop: {"key": QtCore.Qt.Key_E, "ctrl": True},
-        Hotkeys.SelectRingLoop: {"key": QtCore.Qt.Key_R, "ctrl": True},
-        Hotkeys.SelectPerimeter: {"key": QtCore.Qt.Key_T, "ctrl": True},
-        Hotkeys.SelectShell: {"key": QtCore.Qt.Key_A, "ctrl": True, "shift": True},
-        Hotkeys.ToggleInfLock: {"key": QtCore.Qt.Key_Space},
-        Hotkeys.ToggleInfLock2: {"key": QtCore.Qt.Key_L}
+        Hotkeys.ToggleTableListViews: {"key": Qt.Key_QuoteLeft, "ctrl": True},
+        Hotkeys.ShowUtilities: {"key": Qt.Key_1, "ctrl": True},
+        Hotkeys.ShowAddPresets: {"key": Qt.Key_2, "ctrl": True},
+        Hotkeys.ShowScalePresets: {"key": Qt.Key_3, "ctrl": True},
+        Hotkeys.ShowSetPresets: {"key": Qt.Key_4, "ctrl": True},
+        Hotkeys.ShowInfList: {"key": Qt.Key_5, "ctrl": True},
+        Hotkeys.ShowInfColors: {"key": Qt.Key_6, "ctrl": True},
+        Hotkeys.MirrorAll: {"key": Qt.Key_M, "ctrl": True},
+        Hotkeys.Prune: {"key": Qt.Key_P, "ctrl": True},
+        Hotkeys.PruneMaxInfs: {"key": Qt.Key_P, "ctrl": True, "shift": True},
+        Hotkeys.RunSmooth: {"key": Qt.Key_S, "ctrl": True, "shift": True},
+        Hotkeys.RunSmoothAllInfs: {"key": Qt.Key_D, "ctrl": True, "shift": True},
+        Hotkeys.Undo: {"key": Qt.Key_Z, "ctrl": True, "shift": True},
+        Hotkeys.Redo: {"key": Qt.Key_X, "ctrl": True, "shift": True},
+        Hotkeys.GrowSelection: {"key": Qt.Key_Greater},
+        Hotkeys.ShrinkSelection: {"key": Qt.Key_Less},
+        Hotkeys.SelectEdgeLoop: {"key": Qt.Key_E, "ctrl": True},
+        Hotkeys.SelectRingLoop: {"key": Qt.Key_R, "ctrl": True},
+        Hotkeys.SelectPerimeter: {"key": Qt.Key_T, "ctrl": True},
+        Hotkeys.SelectShell: {"key": Qt.Key_A, "ctrl": True, "shift": True},
+        Hotkeys.ToggleInfLock: {"key": Qt.Key_Space},
+        Hotkeys.ToggleInfLock2: {"key": Qt.Key_L}
     }
 
     def __init__(self, caption, key, func, ctrl=False, shift=False, alt=False):
@@ -46,9 +45,9 @@ class Hotkey:
 
         # Only include shift for alphabetical characters or it won't work.
         return {
-            "shift": char.lower() != char and (QtCore.Qt.SHIFT & modifiers > 0),
-            "ctrl": QtCore.Qt.CTRL & modifiers > 0,
-            "alt": QtCore.Qt.ALT & modifiers > 0,
+            "shift": char.lower() != char and (Qt.SHIFT & modifiers > 0),
+            "ctrl": Qt.CTRL & modifiers > 0,
+            "alt": Qt.ALT & modifiers > 0,
             "key": key_event.key()
         }
 
@@ -67,16 +66,16 @@ class Hotkey:
         )
 
     def key_code(self):
-        ctrl = QtCore.Qt.CTRL if self.ctrl else 0
-        shift = QtCore.Qt.SHIFT if self.shift else 0
-        alt = QtCore.Qt.ALT if self.alt else 0
-        return self.key | ctrl | shift | alt
+        ctrl = int(self.ctrl)
+        shift = int(self.shift)
+        alt = int(self.alt)
+        return int(self.key) | ctrl | shift | alt
 
     def key_to_string(self):
         ctrl = "Ctrl" if self.ctrl else None
         shift = "Shift" if self.shift else None
         alt = "Alt" if self.alt else None
-        key = QtGui.QKeySequence(self.key).toString()
+        key = QKeySequence(self.key).toString()
         return " + ".join(filter(None, [ctrl, shift, alt, key]))
 
     def matches(self, other_hotkey):

@@ -1,42 +1,38 @@
-from PySide2 import QtCore
-from PySide2 import QtGui
-from PySide2 import QtWidgets
-
-from weights_editor_tool import constants
-from weights_editor_tool import weights_editor_utils as utils
+from weights_editor_tool import constants, weights_editor_utils as utils
+from weights_editor_tool.widgets.widgets_utils import *
 
 
-class AboutDialog(QtWidgets.QDialog):
+class AboutDialog(QDialog):
 
     def __init__(self, version, parent=None):
-        QtWidgets.QDialog.__init__(self, parent=parent)
+        QDialog.__init__(self, parent=parent)
 
         self._version = version
 
         self._create_gui()
 
     def _wrap_groupbox(self, title, msg):
-        label = QtWidgets.QLabel(msg, parent=self)
+        label = QLabel(msg, parent=self)
         label.setWordWrap(True)
-        label.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse | QtCore.Qt.LinksAccessibleByMouse)
-        label.setCursor(QtGui.QCursor(QtCore.Qt.IBeamCursor))
+        label.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        label.setCursor(QCursor(Qt.IBeamCursor))
         label.setOpenExternalLinks(True)
 
-        layout = QtWidgets.QVBoxLayout()
+        layout = QVBoxLayout()
         layout.addWidget(label)
 
-        groupbox = QtWidgets.QGroupBox(title, parent=self)
+        groupbox = QGroupBox(title, parent=self)
         groupbox.setLayout(layout)
 
         return groupbox
 
     def _create_gui(self):
-        self._logo_img = QtWidgets.QLabel(parent=self)
-        self._logo_img.setAlignment(QtCore.Qt.AlignCenter)
+        self._logo_img = QLabel(parent=self)
+        self._logo_img.setAlignment(Qt.AlignCenter)
         self._logo_img.setPixmap(utils.load_pixmap("about/logo.png", width=125))
 
-        self._version_label = QtWidgets.QLabel("Version v{}".format(self._version), parent=self)
-        self._version_label.setAlignment(QtCore.Qt.AlignCenter)
+        self._version_label = QLabel("Version v{}".format(self._version), parent=self)
+        self._version_label.setAlignment(Qt.AlignCenter)
         self._version_label.setStyleSheet(
             "QLabel {font-weight: bold; color: white;}")
 
@@ -74,7 +70,7 @@ class AboutDialog(QtWidgets.QDialog):
             "Bugs and features",
             "Please report any bugs on its <b><a href='{url}'>GitHub issues page</a></b>".format(url=constants.GITHUB_ISSUES))
 
-        self._scroll_layout = QtWidgets.QVBoxLayout()
+        self._scroll_layout = QVBoxLayout()
         self._scroll_layout.addWidget(self._table_tips_groupbox)
         self._scroll_layout.addWidget(self._inf_list_tips_groupbox)
         self._scroll_layout.addWidget(self._limitations_groupbox)
@@ -83,24 +79,24 @@ class AboutDialog(QtWidgets.QDialog):
         self._scroll_layout.addWidget(self._bugs_groupbox)
         self._scroll_layout.addStretch()
 
-        self._scroll_frame = QtWidgets.QFrame(parent=self)
+        self._scroll_frame = QFrame(parent=self)
         self._scroll_frame.setLayout(self._scroll_layout)
 
-        self._scroll_area = QtWidgets.QScrollArea(parent=self)
-        self._scroll_area.setFocusPolicy(QtCore.Qt.NoFocus)
+        self._scroll_area = QScrollArea(parent=self)
+        self._scroll_area.setFocusPolicy(Qt.NoFocus)
         self._scroll_area.setStyleSheet("QScrollArea {border: none;}")
         self._scroll_area.setWidget(self._scroll_frame)
         self._scroll_area.setWidgetResizable(True)
 
-        self._ok_button = QtWidgets.QPushButton("OK", parent=self)
+        self._ok_button = QPushButton("OK", parent=self)
         self._ok_button.clicked.connect(self.close)
 
-        self._ok_layout = QtWidgets.QHBoxLayout()
+        self._ok_layout = QHBoxLayout()
         self._ok_layout.addStretch()
         self._ok_layout.addWidget(self._ok_button)
         self._ok_layout.addStretch()
 
-        self._main_layout = QtWidgets.QVBoxLayout()
+        self._main_layout = QVBoxLayout()
         self._main_layout.addWidget(self._logo_img)
         self._main_layout.addWidget(self._version_label)
         self._main_layout.addWidget(self._scroll_area)

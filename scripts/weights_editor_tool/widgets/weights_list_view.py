@@ -1,15 +1,13 @@
-from PySide2 import QtCore
-from PySide2 import QtWidgets
-
 from weights_editor_tool.widgets import abstract_weights_view
+from weights_editor_tool.widgets.widgets_utils import *
 
 
 class ListView(abstract_weights_view.AbstractWeightsView):
 
     def __init__(self, editor_inst):
-        super(ListView, self).__init__(QtCore.Qt.Vertical, editor_inst)
+        super(ListView, self).__init__(Qt.Vertical, editor_inst)
 
-        self._sort_inf_name_action = QtWidgets.QAction(self)
+        self._sort_inf_name_action = QAction(self)
         self._sort_inf_name_action.setText("Sort by inf name")
         self._sort_inf_name_action.triggered.connect(self._sort_inf_name_on_triggered)
 
@@ -22,16 +20,16 @@ class ListView(abstract_weights_view.AbstractWeightsView):
         """
         Enables multiple cells to be set.
         """
-        is_cancelled = (hint == QtWidgets.QAbstractItemDelegate.RevertModelCache)
+        is_cancelled = (hint == QAbstractItemDelegate.RevertModelCache)
         
         if not is_cancelled:
             for index in self.selectedIndexes():
                 if index == self.currentIndex():
                     continue
                 
-                self.model().setData(index, None, QtCore.Qt.EditRole)
+                self.model().setData(index, None, Qt.EditRole)
         
-        QtWidgets.QTableView.closeEditor(self, editor, hint)
+        QTableView.closeEditor(self, editor, hint)
         
         if self.model().input_value is not None:
             self.model().input_value = None
@@ -47,15 +45,15 @@ class ListView(abstract_weights_view.AbstractWeightsView):
         self._old_skin_data = None
 
     def _sort_ascending_on_triggered(self):
-        self._reorder_by_values(QtCore.Qt.DescendingOrder)
+        self._reorder_by_values(Qt.DescendingOrder)
 
     def _sort_descending_on_triggered(self):
-        self._reorder_by_values(QtCore.Qt.AscendingOrder)
+        self._reorder_by_values(Qt.AscendingOrder)
 
     def _sort_inf_name_on_triggered(self):
         self._reorder_by_name()
 
-    def _reorder_by_name(self, order=QtCore.Qt.AscendingOrder):
+    def _reorder_by_name(self, order=Qt.AscendingOrder):
         self.begin_update()
         selection_data = self.save_table_selection()
 
@@ -89,7 +87,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
             row = self.table_model.display_infs.index(inf)
             selection_model = self.selectionModel()
             index = self.model().createIndex(row, 0)
-            flags = QtCore.QItemSelectionModel.ClearAndSelect | QtCore.QItemSelectionModel.Rows
+            flags = QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows
             selection_model.select(index, flags)
         else:
             self.clearSelection()
@@ -142,7 +140,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
             return
 
         selection_model = self.selectionModel()
-        item_selection = QtCore.QItemSelection()
+        item_selection = QItemSelection()
 
         for inf, vert_indexes in selection_data.items():
             if inf not in self.table_model.display_infs:
@@ -150,9 +148,9 @@ class ListView(abstract_weights_view.AbstractWeightsView):
 
             row = self.table_model.display_infs.index(inf)
             index = self.model().index(row, 0)
-            item_selection.append(QtCore.QItemSelectionRange(index, index))
+            item_selection.append(QItemSelectionRange(index, index))
 
-        selection_model.select(item_selection, QtCore.QItemSelectionModel.Select)
+        selection_model.select(item_selection, QItemSelectionModel.Select)
 
     def fit_headers_to_contents(self):
         width = 0
@@ -169,7 +167,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
                 font_metrics.width(inf)
                 for inf in infs])[-1] + padding
 
-        self.verticalHeader().size = QtCore.QSize(width, 0)
+        self.verticalHeader().size = QSize(width, 0)
 
 
 class ListModel(abstract_weights_view.AbstractModel):
@@ -195,13 +193,13 @@ class ListModel(abstract_weights_view.AbstractModel):
         if not index.isValid():
             return
 
-        roles = [QtCore.Qt.ForegroundRole, QtCore.Qt.DisplayRole, QtCore.Qt.EditRole]
+        roles = [Qt.ForegroundRole, Qt.DisplayRole, Qt.EditRole]
 
         if role in roles:
             inf = self.get_inf(index.row())
             value = self.get_average_weight(inf)
             
-            if role == QtCore.Qt.ForegroundRole:
+            if role == Qt.ForegroundRole:
                 inf_index = self._editor_inst.obj.infs.index(inf)
                 is_locked = self._editor_inst.locks[inf_index]
                 if is_locked:
@@ -227,7 +225,7 @@ class ListModel(abstract_weights_view.AbstractModel):
         if not index.isValid():
             return False
         
-        if role != QtCore.Qt.EditRole:
+        if role != Qt.EditRole:
             return False
         
         # Triggers if first cell wasn't valid
@@ -259,9 +257,9 @@ class ListModel(abstract_weights_view.AbstractModel):
         """
         Deterimines the header's labels and style.
         """
-        if role == QtCore.Qt.ForegroundRole:
+        if role == Qt.ForegroundRole:
             # Color locks
-            if orientation == QtCore.Qt.Vertical:
+            if orientation == Qt.Vertical:
                 inf_name = self.display_infs[index]
                 
                 if inf_name in self._editor_inst.obj.infs:
@@ -270,9 +268,9 @@ class ListModel(abstract_weights_view.AbstractModel):
                     is_locked = self._editor_inst.locks[inf_index]
                     if is_locked:
                         return self._header_locked_text
-        elif role == QtCore.Qt.BackgroundColorRole:
+        elif role == Qt.BackgroundColorRole:
             # Color background
-            if orientation == QtCore.Qt.Vertical:
+            if orientation == Qt.Vertical:
                 # Use softimage colors
                 if self.header_colors:
                     color = self.header_colors[index]
@@ -283,8 +281,8 @@ class ListModel(abstract_weights_view.AbstractModel):
                     if self._editor_inst.color_inf is not None:
                         if self._editor_inst.color_inf == self.get_inf(index):
                             return self._header_active_inf_back_color
-        elif role == QtCore.Qt.DisplayRole:
-            if orientation == QtCore.Qt.Vertical:
+        elif role == Qt.DisplayRole:
+            if orientation == Qt.Vertical:
                 # Show top labels
                 if self.display_infs and index < len(self.display_infs):
                     inf = self.display_infs[index]
@@ -293,8 +291,8 @@ class ListModel(abstract_weights_view.AbstractModel):
                     return inf
             else:
                 return "Average values"
-        elif role == QtCore.Qt.ToolTipRole:
-            if orientation == QtCore.Qt.Vertical:
+        elif role == Qt.ToolTipRole:
+            if orientation == Qt.Vertical:
                 if self.display_infs and index < len(self.display_infs):
                     return self.display_infs[index]
 

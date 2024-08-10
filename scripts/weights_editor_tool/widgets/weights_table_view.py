@@ -1,23 +1,21 @@
 from maya import cmds
 
-from PySide2 import QtCore
-from PySide2 import QtWidgets
-
 from weights_editor_tool import weights_editor_utils as utils
 from weights_editor_tool.widgets import abstract_weights_view
+from weights_editor_tool.widgets.widgets_utils import *
 
 
 class TableView(abstract_weights_view.AbstractWeightsView):
 
-    update_ended = QtCore.Signal(bool)
+    update_ended = Signal(bool)
 
     def __init__(self, editor_inst):
-        super(TableView, self).__init__(QtCore.Qt.Horizontal, editor_inst)
+        super(TableView, self).__init__(Qt.Horizontal, editor_inst)
 
         self._selected_rows = set()
-        self._header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+        self._header.setSectionResizeMode(QHeaderView.ResizeToContents)
 
-        self._sort_weights_vert_order_action = QtWidgets.QAction(self)
+        self._sort_weights_vert_order_action = QAction(self)
         self._sort_weights_vert_order_action.setText("Sort by weights (vertex order)")
         self._sort_weights_vert_order_action.triggered.connect(self._sort_vert_order_on_triggered)
 
@@ -27,23 +25,23 @@ class TableView(abstract_weights_view.AbstractWeightsView):
         self._set_model(table_model)
 
     def selectionChanged(self, selected, deselected):
-        QtWidgets.QTableView.selectionChanged(self, selected, deselected)
+        QTableView.selectionChanged(self, selected, deselected)
         self._cell_selection_on_changed()
 
     def closeEditor(self, editor, hint):
         """
         Enables multiple cells to be set.
         """
-        is_cancelled = (hint == QtWidgets.QAbstractItemDelegate.RevertModelCache)
+        is_cancelled = (hint == QAbstractItemDelegate.RevertModelCache)
         
         if not is_cancelled:
             for index in self.selectedIndexes():
                 if index == self.currentIndex():
                     continue
                 
-                self.model().setData(index, None, QtCore.Qt.EditRole)
+                self.model().setData(index, None, Qt.EditRole)
         
-        QtWidgets.QTableView.closeEditor(self, editor, hint)
+        QTableView.closeEditor(self, editor, hint)
         
         if self.model().input_value is not None:
             self.model().input_value = None
@@ -63,10 +61,10 @@ class TableView(abstract_weights_view.AbstractWeightsView):
         self._old_skin_data = None
 
     def _sort_ascending_on_triggered(self):
-        self._reorder_rows(self._header.last_index, QtCore.Qt.DescendingOrder)
+        self._reorder_rows(self._header.last_index, Qt.DescendingOrder)
 
     def _sort_descending_on_triggered(self):
-        self._reorder_rows(self._header.last_index, QtCore.Qt.AscendingOrder)
+        self._reorder_rows(self._header.last_index, Qt.AscendingOrder)
 
     def _sort_vert_order_on_triggered(self):
         self._reorder_rows(self._header.last_index, None)
@@ -111,7 +109,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
 
         Args:
             column(int): The influence to compare weights with.
-            order(QtCore.Qt.SortOrder): The direction to sort the weights by.
+            order(Qt.SortOrder): The direction to sort the weights by.
                                         If None, re-orders based on vertex index.
         """
         self.begin_update()
@@ -139,7 +137,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
             column = self.table_model.display_infs.index(inf)
             selection_model = self.selectionModel()
             index = self.model().createIndex(0, column)
-            flags = QtCore.QItemSelectionModel.ClearAndSelect | QtCore.QItemSelectionModel.Columns
+            flags = QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Columns
             selection_model.select(index, flags)
         else:
             self.clearSelection()
@@ -205,7 +203,7 @@ class TableView(abstract_weights_view.AbstractWeightsView):
             return
 
         selection_model = self.selectionModel()
-        item_selection = QtCore.QItemSelection()
+        item_selection = QItemSelection()
 
         for inf, vert_indexes in selection_data.items():
             if inf not in self.table_model.display_infs:
@@ -219,9 +217,9 @@ class TableView(abstract_weights_view.AbstractWeightsView):
 
                 row = self._editor_inst.vert_indexes.index(vert_index)
                 index = self.model().index(row, column)
-                item_selection.append(QtCore.QItemSelectionRange(index, index))
+                item_selection.append(QItemSelectionRange(index, index))
 
-        selection_model.select(item_selection, QtCore.QItemSelectionModel.Select)
+        selection_model.select(item_selection, QItemSelectionModel.Select)
 
     def fit_headers_to_contents(self):
         for i in range(self.horizontalHeader().count()):
@@ -252,13 +250,13 @@ class TableModel(abstract_weights_view.AbstractModel):
         if not index.isValid():
             return
 
-        roles = [QtCore.Qt.ForegroundRole, QtCore.Qt.DisplayRole, QtCore.Qt.EditRole]
+        roles = [Qt.ForegroundRole, Qt.DisplayRole, Qt.EditRole]
 
         if role in roles:
             inf = self.get_inf(index.column())
             value = self._get_value_by_index(index)
             
-            if role == QtCore.Qt.ForegroundRole:
+            if role == Qt.ForegroundRole:
                 inf_index = self._editor_inst.obj.infs.index(inf)
                 is_locked = self._editor_inst.locks[inf_index]
                 if is_locked:
@@ -284,7 +282,7 @@ class TableModel(abstract_weights_view.AbstractModel):
         if not index.isValid():
             return False
         
-        if role != QtCore.Qt.EditRole:
+        if role != Qt.EditRole:
             return False
         
         # Triggers if first cell wasn't valid
@@ -324,9 +322,9 @@ class TableModel(abstract_weights_view.AbstractModel):
         """
         Deterimines the header's labels and style.
         """
-        if role == QtCore.Qt.ForegroundRole:
+        if role == Qt.ForegroundRole:
             # Color locks
-            if orientation == QtCore.Qt.Horizontal:
+            if orientation == Qt.Horizontal:
                 inf_name = self.display_infs[column]
                 
                 if inf_name in self._editor_inst.obj.infs:
@@ -335,9 +333,9 @@ class TableModel(abstract_weights_view.AbstractModel):
                     is_locked = self._editor_inst.locks[inf_index]
                     if is_locked:
                         return self._header_locked_text
-        elif role == QtCore.Qt.BackgroundColorRole:
+        elif role == Qt.BackgroundColorRole:
             # Color background
-            if orientation == QtCore.Qt.Horizontal:
+            if orientation == Qt.Horizontal:
                 # Use softimage colors
                 if self.header_colors:
                     color = self.header_colors[column]
@@ -348,8 +346,8 @@ class TableModel(abstract_weights_view.AbstractModel):
                     if self._editor_inst.color_inf is not None:
                         if self._editor_inst.color_inf == self.get_inf(column):
                             return self._header_active_inf_back_color
-        elif role == QtCore.Qt.DisplayRole:
-            if orientation == QtCore.Qt.Horizontal:
+        elif role == Qt.DisplayRole:
+            if orientation == Qt.Horizontal:
                 # Show top labels
                 if self.display_infs and column < len(self.display_infs):
                     inf = self.display_infs[column]
@@ -360,8 +358,8 @@ class TableModel(abstract_weights_view.AbstractModel):
                 # Show side labels
                 if self._editor_inst.vert_indexes and column < len(self._editor_inst.vert_indexes):
                     return "vtx[{0}]".format(self._editor_inst.vert_indexes[column])
-        elif role == QtCore.Qt.ToolTipRole:
-            if orientation == QtCore.Qt.Horizontal:
+        elif role == Qt.ToolTipRole:
+            if orientation == Qt.Horizontal:
                 if self.display_infs and column < len(self.display_infs):
                     return self.display_infs[column]
 
