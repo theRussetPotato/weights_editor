@@ -10,7 +10,7 @@ class TestSkinnedObj(MayaBaseTestCase):
     def testName(self) -> None:
         sceneObjs = self.createSkinScene()
         skinnedObj = SkinnedObj.create(sceneObjs["mesh"])
-        self.assertEqual(skinnedObj.name, "mesh")
+        self.assertEqual(skinnedObj.name, "|root|mesh")
 
     def testSkinCluster(self) -> None:
         sceneObjs = self.createSkinScene()

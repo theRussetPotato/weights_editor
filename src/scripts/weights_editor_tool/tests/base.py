@@ -59,12 +59,10 @@ class MayaBaseTestCase(TestCase):
 
     @staticmethod
     def createSkinScene() -> dict[str, Any]:
-        root = "root"
-        mesh = "mesh"
-
-        cmds.createNode("transform", name=root)
-        cmds.polySphere(name=mesh, subdivisionsX=6, subdivisionsY=6)
-        cmds.parent(mesh, "root")
+        root = cmds.ls(cmds.createNode("transform", name="root"), long=True)[0]
+        mesh = cmds.polySphere(name="mesh", subdivisionsX=6, subdivisionsY=6)[0]
+        cmds.parent(mesh, root)
+        mesh = cmds.ls("mesh", long=True)[0]
 
         jnts = list()
 
