@@ -1,0 +1,97 @@
+QGroupBox {{
+    color: rgb(160, 160, 160);
+    font-weight: bold;
+}}
+
+QMenuBar {{
+    background-color: {winColor};
+}}
+
+QToolButton {{
+    background-color: {buttonColor};
+}}
+
+QToolButton:hover {{
+    background-color: {buttonHoverColor};
+}}
+
+QToolButton:pressed {{
+    background-color: black;
+    border: none;
+}}
+
+QPushButton[empty="true"] {{
+    background-color: {buttonColor};
+    border: 2px solid rgb(0, 255, 0);
+}}
+
+QPushButton[empty="true"]:hover {{
+    background-color: {buttonHoverColor};
+}}
+
+QPushButton[empty="true"]:pressed {{
+    background-color: black;
+}}
+
+QListView::item {{
+    color: None;
+}}
+
+#utilsFrame {{
+    background-color: {winColor};
+}}
+
+#utilsScrollArea {{
+    border: none;
+}}
+
+#presetPositiveButton {{
+    background-color: {presetBg};
+}}
+
+#presetPositiveButton:hover {{
+    background-color: rgb({presetPosR}, {presetPosG}, {presetPosB});
+}}
+
+#presetPositiveButton:pressed {{
+    background-color: black;
+}}
+
+#presetNegativeButton {{
+    background-color: {presetBg};
+}}
+
+#presetNegativeButton:hover {{
+    background-color: rgb({presetNegR}, {presetNegG}, {presetNegB});
+}}
+
+#presetNegativeButton:pressed {{
+    background-color: black;
+}}
+
+#presetLabel {{
+    font-weight: bold;
+    color: white;
+    font-size: 16px;
+}}
+
+#presetLabel::disabled {{
+    color: grey;
+}}
+
+#warningLabel {{
+    background-color: yellow;
+    color: black;
+    padding-left: 4px;
+}}
+
+#updateFrame {{
+    background-color: rgb(130, 130, 0);
+    padding: 0px;
+    margin: 0;
+}}
+
+#updateLabel {{
+    font-weight: bold;
+    color: white;
+}}
