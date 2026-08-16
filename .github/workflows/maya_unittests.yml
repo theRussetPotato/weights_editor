@@ -13,7 +13,7 @@ jobs:
     - name: Run Unittests
       uses: docker://mottosso/maya:2018.7 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
 
   maya2019-3:
     runs-on: ubuntu-latest
@@ -23,7 +23,7 @@ jobs:
     - name: Load Docker Image
       uses: docker://mottosso/maya:2019.3 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
 
   maya2020sp1:
     runs-on: ubuntu-latest
@@ -33,7 +33,7 @@ jobs:
     - name: Run Unittests
       uses: docker://mottosso/maya:2020sp1 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
 
   maya2022-1:
     runs-on: ubuntu-latest
@@ -43,7 +43,7 @@ jobs:
     - name: Load Docker Image
       uses: docker://mottosso/maya:2022.1 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
 
   maya2023:
     runs-on: ubuntu-latest
@@ -53,7 +53,7 @@ jobs:
     - name: Load Docker Image
       uses: docker://mottosso/maya:2023 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
 
   maya2024:
     runs-on: ubuntu-latest
@@ -63,7 +63,7 @@ jobs:
     - name: Load Docker Image
       uses: docker://mottosso/maya:2024 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
 
   maya2025:
     runs-on: ubuntu-latest
@@ -73,7 +73,7 @@ jobs:
     - name: Load Docker Image
       uses: docker://mottosso/maya:2024 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
 
   maya2026:
     runs-on: ubuntu-latest
@@ -83,7 +83,7 @@ jobs:
     - name: Load Docker Image
       uses: docker://mottosso/maya:2024 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
 
   maya2027:
     runs-on: ubuntu-latest
@@ -93,4 +93,4 @@ jobs:
     - name: Load Docker Image
       uses: docker://mottosso/maya:2024 # For all available Maya versions, see https://github.com/mottosso/docker-maya
       with:
-        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./scripts/weights_editor_tool/tests -v
+        args: /usr/autodesk/maya/bin/mayapy -m unittest discover -s ./src/scripts/weights_editor_tool/tests -v
