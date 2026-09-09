@@ -7,6 +7,3 @@ class CustomScrollArea(QtWidgets.QScrollArea):
     """
     def __init__(self, parent: QtWidgets.QWidget = None) -> None:
         super().__init__(parent=parent)
-
-    def sizeHint(self) -> QtCore.QSize:
-        return QtCore.QSize(1, 250)

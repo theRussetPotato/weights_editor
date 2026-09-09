@@ -37,6 +37,7 @@ class CustomButton(QtWidgets.QPushButton):
             checkable: bool = False,
             clickEvent: Optional[Callable] = None,
             minimumWidth : int = 25,
+            maximumHeight: Optional[int] = 20,
             supportCompactMode: bool = True,
             parent: QtWidgets.QWidget = None) -> None:
         """
@@ -63,6 +64,8 @@ class CustomButton(QtWidgets.QPushButton):
         self.setAttribute(QtCore.Qt.WA_StyledBackground)
         self.setIconSize(iconSize)
         self.setMinimumWidth(minimumWidth)
+        if maximumHeight is not None:
+            self.setMaximumHeight(maximumHeight)
         self.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
 
         if icon is not None:

@@ -237,7 +237,7 @@ class ListView(abstract_weights_view.AbstractWeightsView):
                 infs = [inf.split("|")[-1].split(":")[-1] for inf in infs]
 
             fontMetrics = self._editorInstance.fontMetrics()
-            padding = 10
+            padding = 25
             iconSize = self.tableModel.jointIcon.width()
 
             textWidths = []

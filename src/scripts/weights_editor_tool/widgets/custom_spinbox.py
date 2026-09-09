@@ -72,7 +72,7 @@ class CustomSpinBox(QtWidgets.QSpinBox):
         self._label = None
 
         self.setMinimumWidth(minimumWidth)
-        self.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         self.setLineEdit(self._lineEdit)
         self.setValue(value)
 

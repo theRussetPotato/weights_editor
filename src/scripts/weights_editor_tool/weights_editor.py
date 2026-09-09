@@ -7,97 +7,9 @@ Known Issues:
     - The table view is really not made to handle tons of verts.
     - Resizing is slow when the table view has tons of verts selected.
 
-TODO:
-    - Uninstall option in the interface
-    * Create installer
-    * Add setting to disable instant tooltips
-    * Remove 'about' dialog
-    * [high] Compatibility: Make it compatible for 2025 (QT6)
-    * Cohesive icons for "select" buttons
-    * Bug: It always starts the tool in the weight's listview
-    * Feature: Add "select inf border" to context menu
-    * Clean up commands script
-    * Weight list - add a bit of white space to value so it's not so close to the edge of the cell
-    * Optimize tool's height
-        * Make preset section shorter?
-        * Add scroll area for all button sections?
-    * Split skinning utils to other group boxes? (smooth weights, mirror, prune)
-    * Fix compact mode
-    * When hiding all presets, the groupbox should hide too
-    * Automate joint labels?
-    * When middle-click influence list:
-        * Also select it
-    * [high] Feature: Show all joints in inf list
-        * Error on 'select inf vertexes'
-        * Error on 'display inf'
-        * Error on 'lock inf'
-    * [high] Bug: Listview - selecting first header items don't select their cells
-        * Combine all different methods to set color inf to one function
-    * [high] Bug: Listview - middle-click on a cell should set it as the active inf
-    * UX: Hotkey LineEdits should have a button to revert to default
-    * Bug: Hotkey lineEdits don't recognize arrow keys
-    * [high] Adding a new hotkey is kind of complicated.
-    * [low] Feature: Hotkeys for presets?
-    * [normal] Inf listview - autoscroll to the active inf
-    * [normal] UX: When max influence colors is showing but you're trying to switch the active inf, throw a warning. Otherwise it's confusing why the active inf didn't show.
-    * [high] Refactor: Refactor code to camelCase to match Maya API and Qt
-        * Convert vars to camelCase
-        * Add typing hints
-        * Convert to fstrings
-        * Use long name args for cmds
-        * Make all events use signature 'onButtonClicked' (on + object + action)
-        * Add docstrings
-    * [high] Put stylesheet in separate file
-    * Bug: Buttons need a method to update their caption to better support checked buttons in compact mode
-    * Interface: Get instant tooltips working for spinboxes
-    * UX: Hide reference name across ui
-        * weights table
-        * weights list
-        * influence view
-            * Toggle with settings
-        * pick mesh button?
-    * Feature: Check for updates on open
-        * Have a setting to disable it
-    * UX: Move export/import buttons to menu?
-    * Feature: Sort out the smooth buttons
-    * UX: 'set' preset buttons should include a '=' prefix
-    * Usability: Editing preset buttons is really janky
-    * UX: Link to help report an issue on GitHub
-    * UX: Add better text color to weights (red when low, white when high?)
-    * UX: Add an 'x' button to clear the filter's text
-    * Currently creating new settings dialog
-        * Remove old settings
-        * Get general settings to work
-        * Get hotkeys to work
-        * Get presets to work
-        * Save new settings on close
-        * Restore settings on open
-            * Need to work with mirror dialog
-        * Move settings to an icon button
-
-Completed:
-    * Interface: Improve tooltips of preset buttons
-    * Set a fixed max row limit for table view
-    * Always hide long names
-    * Get sync/pause view button to work
-    * Bug: Showing display color should not be in the undo stack
-    * Make sure undo/redo have a proper name set
-    * Color pick mesh button with a green border when a mesh isn't picked
-    * Properly handle undo/redo so it works within maya
-    * Make max infs color view into its own button
-    * Views toolbar to hide infs, presets
-    * Bug fix: Refresh shouldn't change current influence that's showing
-    * Show lock icon on list and table views
-    * Instant tooltip on widgets?
-    * Turn buttons to icon only when window resizes small enough
-    * Change inf highlight color
-    * Make theme setting into a button
-    - Initial read of skin weights sped up 80% by switching to om2
-    - Import by world results in smoother weights by using inverse distance weighting
-
 Example of usage:
-from weights_editor_tool import weights_editor
-weights_editor.run()
+    from weights_editor_tool import weights_editor
+    weights_editor.run()
 """
 
 import os
@@ -123,6 +35,7 @@ from weights_editor_tool.classes.skin_data import SkinData
 from weights_editor_tool.classes.skinned_obj import SkinnedObj
 from weights_editor_tool.classes.hotkey import Hotkey
 from weights_editor_tool.classes.commands import CommandEditWeights, CommandLockInfs
+from weights_editor_tool.widgets.seperator_widget import SeperatorWidget
 from weights_editor_tool.widgets.instant_tooltip_dialog import InstantToolTipDialog
 from weights_editor_tool.widgets.abstract_weights_view import AbstractWeightsView
 from weights_editor_tool.widgets import inf_list_view
@@ -169,6 +82,15 @@ class WeightsEditor(QtWidgets.QWidget):
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setObjectName("weightsEditor")
 
+        # Private properties.
+        self._toolSettings = ToolSettings()
+        self._readUserToolSettings()
+        self._compactMode: bool = False
+        self._copiedVertex = None
+        self._deleteSkinOnExport: bool = True
+        self._inComponentMode = utils.isInComponentMode()
+        self._hotkeys = []
+
         # Public properties.
         self.blockSelectionCallback = False
         self.ignoreCellSelectionEvent = False
@@ -176,15 +98,7 @@ class WeightsEditor(QtWidgets.QWidget):
         self.colorInfluence = None
         self.vertIndexes = []
         self.locks = []
-        self.colorTheme = ColorTheme.Max
-
-        # Private properties.
-        self._compactMode: bool = False
-        self._copiedVertex = None
-        self._deleteSkinOnExport: bool = True
-        self._inComponentMode = utils.isInComponentMode()
-        self._hotkeys = []
-        self._toolSettings = ToolSettings()
+        self.colorTheme = self._toolSettings.colorTheme
 
         self._createGui()
 
@@ -213,7 +127,6 @@ class WeightsEditor(QtWidgets.QWidget):
             "scaleWeightDown": partial(self._scaleSelectedWeights, -20)
         }
 
-        self._readUserToolSettings()
         self._applyCurrentToolSettings()
         self._updateWindowTitle()
 
@@ -377,7 +290,8 @@ class WeightsEditor(QtWidgets.QWidget):
             toolTip="Open the settings dialog.",
             iconSize=headerIconSize,
             clickEvent=self._onSettingsClicked,
-            supportCompactMode=False)
+            supportCompactMode=False,
+            maximumHeight=None)
         self._settingsButton.setFixedWidth(35)
 
         self._pickObjButton = CustomButton(
@@ -386,7 +300,8 @@ class WeightsEditor(QtWidgets.QWidget):
             toolTip="Loads-in the selected mesh/curve to edit its skin weights.",
             iconSize=headerIconSize,
             clickEvent=self._pickSelectedObj,
-            supportCompactMode=False)
+            supportCompactMode=False,
+            maximumHeight=None)
         self._pickObjButton.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
 
         self._refreshButton = CustomButton(
@@ -394,7 +309,8 @@ class WeightsEditor(QtWidgets.QWidget):
             icon="interface/refresh.png",
             toolTip="Refreshes the skin's data.",
             iconSize=headerIconSize,
-            clickEvent=self._onRefreshClicked)
+            clickEvent=self._onRefreshClicked,
+            maximumHeight=None)
 
         self._headerLayout = utils.wrapLayout(
             [self._settingsButton, self._pickObjButton, self._refreshButton],
@@ -521,8 +437,8 @@ class WeightsEditor(QtWidgets.QWidget):
 
         self._presetsLayout = utils.wrapLayout(
             [self._addPresetWidget, self._scalePresetWidget, self._setPresetWidget],
-            spacing=0,
-            margins=[0, 0, 0, 0])
+            spacing=4,
+            margins=[0, 4, 0, 0])
 
         self._presetsGroupBox = QtWidgets.QGroupBox("Presets")
         self._presetsGroupBox.setLayout(self._presetsLayout)
@@ -576,17 +492,14 @@ class WeightsEditor(QtWidgets.QWidget):
         self._themesLayout = utils.wrapLayout(
             [self._switchThemesButton, self._hideVertColorsButton],
             orientation=QtCore.Qt.Horizontal,
-            margins=[3, 3, 3, 3])
-
-        self._themesGroupBox = QtWidgets.QGroupBox("Vert Colors")
-        self._themesGroupBox.setLayout(self._themesLayout)
+            margins=[3, 0, 3, 0])
 
         #
         # SELECTION WIDGETS
         #
 
         self._selectInfsButton = CustomButton(
-            "Inf(s)",
+            "Sel Inf(s)",
             icon="interface/selectInf.png",
             toolTip="Selects from the scene the current selected influences.",
             supportCompactMode=False,
@@ -594,7 +507,7 @@ class WeightsEditor(QtWidgets.QWidget):
         self._selectInfsButton.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
 
         self._selectVertsByInfsButton = CustomButton(
-            "Inf's Verts",
+            "Sel Inf's Verts",
             icon="interface/selectInfVertex.png",
             toolTip="Selects all vertexes that is effected by the selected influences.",
             supportCompactMode=False,
@@ -602,7 +515,7 @@ class WeightsEditor(QtWidgets.QWidget):
         self._selectVertsByInfsButton.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
 
         self._selectInfEdgesButton = CustomButton(
-            "Inf's Borders",
+            "Sel Inf's Borders",
             icon="interface/selectInfBorder.png",
             toolTip="Selects the edges from the selected influence.",
             supportCompactMode=False,
@@ -628,10 +541,9 @@ class WeightsEditor(QtWidgets.QWidget):
         self._selectionLayout = utils.wrapLayout(
             [self._selectInfsButton, self._selectVertsByInfsButton, 10, self._selectInfEdgesLayout],
             orientation=QtCore.Qt.Horizontal,
-            margins=[3, 3, 3, 3])
+            margins=[3, 0, 3, 0])
 
-        self._selectionGroupBox = QtWidgets.QGroupBox("Select (From Inf List)")
-        self._selectionGroupBox.setLayout(self._selectionLayout)
+        self._selectionSeparator = SeperatorWidget()
 
         #
         # SMOOTH WEIGHTS WIDGETS
@@ -702,10 +614,10 @@ class WeightsEditor(QtWidgets.QWidget):
         self._smoothLayout = utils.wrapLayout(
             [self._smoothPreserveLayout, self._smoothAddLayout],
             orientation=QtCore.Qt.Vertical,
-            margins=[3, 3, 3, 3])
+            margins=[3, 0, 3, 0],
+            spacing=4)
 
-        self._smoothGroupBox = QtWidgets.QGroupBox("Smooth Weights")
-        self._smoothGroupBox.setLayout(self._smoothLayout)
+        self._smoothSeparator = SeperatorWidget()
 
         #
         # PRUNE WEIGHTS WIDGETS
@@ -770,10 +682,10 @@ class WeightsEditor(QtWidgets.QWidget):
         self._pruneLayout = utils.wrapLayout(
             [self._pruneValueLayout, self._pruneInfCountLayout],
             orientation=QtCore.Qt.Vertical,
-            margins=[3, 3, 3, 3])
+            margins=[3, 0, 3, 0],
+            spacing=4)
 
-        self._pruneGroupBox = QtWidgets.QGroupBox("Prune Weights")
-        self._pruneGroupBox.setLayout(self._pruneLayout)
+        self._pruneSeparator = SeperatorWidget()
 
         #
         # MIRROR WEIGHTS WIDGETS
@@ -806,10 +718,9 @@ class WeightsEditor(QtWidgets.QWidget):
         self._mirrorLayout = utils.wrapLayout(
             [self._mirrorSkinButton, self._mirrorAllSkinButton, self._mirrorSettingsButton],
             orientation=QtCore.Qt.Horizontal,
-            margins=[3, 3, 3, 3])
+            margins=[3, 0, 3, 0])
 
-        self._mirrorGroupBox = QtWidgets.QGroupBox("Mirror Weights")
-        self._mirrorGroupBox.setLayout(self._mirrorLayout)
+        self._mirrorSeparator = SeperatorWidget()
 
         #
         # UTILS
@@ -845,18 +756,23 @@ class WeightsEditor(QtWidgets.QWidget):
 
         self._setJointLabelsButton = CustomButton(
             "Automate Joint Labels",
-            icon="interface/show_infs.png",
+            icon="interface/joint_labels.png",
             toolTip="Set joint labels to get better mappings for mirroring and copying skin weights.",
             supportCompactMode=False,
             clickEvent=self._onSetJointLabelsClicked)
         self._setJointLabelsButton.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
 
-        self._skinUtilsLayout = utils.wrapLayout(
-            [self._copyPasteVertexLayout, self._floodToClosestButton, self._setJointLabelsButton, "stretch"],
-            margins=[3, 3, 3, 3])
+        self._miscUtilsLayout = utils.wrapLayout(
+            [self._floodToClosestButton, self._setJointLabelsButton],
+            orientation=QtCore.Qt.Horizontal,
+            margins=[0, 0, 0, 0])
 
-        self._skinUtilsGroupBox = QtWidgets.QGroupBox("Other Utils")
-        self._skinUtilsGroupBox.setLayout(self._skinUtilsLayout)
+        self._skinUtilsLayout = utils.wrapLayout(
+            [self._copyPasteVertexLayout, self._miscUtilsLayout],
+            margins=[3, 0, 3, 0],
+            spacing=4)
+
+        self._skinUtilsSeparator = SeperatorWidget()
 
         self._newAvailableVersionLabel = QtWidgets.QLabel()
         self._newAvailableVersionLabel.setObjectName("updateLabel")
@@ -877,8 +793,10 @@ class WeightsEditor(QtWidgets.QWidget):
         #
 
         self._scrollLayout = utils.wrapLayout(
-            [self._themesGroupBox, self._selectionGroupBox, self._smoothGroupBox, self._pruneGroupBox, self._mirrorGroupBox, self._skinUtilsGroupBox],
-            margins=[0, 5, 0, 0])
+            [self._themesLayout, self._selectionSeparator, self._selectionLayout, self._smoothSeparator,
+             self._smoothLayout, self._pruneSeparator, self._pruneLayout, self._mirrorSeparator, self._mirrorLayout,
+             self._skinUtilsSeparator, self._skinUtilsLayout],
+            margins=[0, 0, 0, 0])
 
         self._skinUtilsFrame = QtWidgets.QWidget(parent=self)
         self._skinUtilsFrame.setObjectName("utilsFrame")
@@ -897,15 +815,28 @@ class WeightsEditor(QtWidgets.QWidget):
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 1)
 
+        self._splitterLayout = QtWidgets.QVBoxLayout()
+        self._splitterLayout.setContentsMargins(0, 0, 0, 0)
+        self._splitterLayout.addWidget(self._splitter, 1)
+        self._splitterLayout.addWidget(self._presetsGroupBox, 0)
+
+        self._splitterFrame = QtWidgets.QWidget(parent=self)
+        self._splitterFrame.setLayout(self._splitterLayout)
+
+        self._vsplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        self._vsplitter.addWidget(self._splitterFrame)
+        self._vsplitter.addWidget(self._skinUtilsScrollArea)
+        self._vsplitter.setStretchFactor(0, 1)
+        self._vsplitter.setStretchFactor(1, 0)
+
         self._mainLayout = QtWidgets.QVBoxLayout()
         self._mainLayout.setContentsMargins(5, 5, 5, 5)
         self._mainLayout.setSpacing(3)
         self._mainLayout.setMenuBar(self._menuBar)
         self._mainLayout.addWidget(self._newAvailableVersionFrame)
         self._mainLayout.addLayout(self._headerLayout)
-        self._mainLayout.addWidget(self._splitter, stretch=1)
-        self._mainLayout.addWidget(self._presetsGroupBox)
-        self._mainLayout.addWidget(self._skinUtilsScrollArea)
+        self._mainLayout.addWidget(self._vsplitter)
+
         self.setLayout(self._mainLayout)
 
     #
@@ -994,7 +925,7 @@ class WeightsEditor(QtWidgets.QWidget):
         layout = utils.wrapLayout(
             [label],
             orientation=QtCore.Qt.Horizontal,
-            margins=[0, 2, 0, 2])
+            margins=[0, 0, 0, 0])
         layout.setAlignment(QtCore.Qt.AlignLeft)
 
         widget = QtWidgets.QWidget()
@@ -1080,6 +1011,7 @@ class WeightsEditor(QtWidgets.QWidget):
                 toolTip=tooltip,
                 supportCompactMode=False)
             presetButton.setMinimumWidth(30)
+            presetButton.setMaximumHeight(20)
 
             presetButton.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
             presetButton.clicked.connect(partial(presetCallback, value))
@@ -1167,6 +1099,7 @@ class WeightsEditor(QtWidgets.QWidget):
             # Set the color theme.
             themeActions = self._themesActionGroup.actions()
             themeActions[self._toolSettings.colorTheme].setChecked(True)
+            self._switchColorTheme(self._toolSettings.colorTheme)
 
             # Set numeral values.
             self._smoothPreserveStrengthSpinBox.setValue(self._toolSettings.smoothPreserveStrength)
@@ -1308,7 +1241,7 @@ class WeightsEditor(QtWidgets.QWidget):
                     if previousColorInf in self.obj.infs:
                         self._setColorInf(previousColorInf)
                     else:
-                        self._assignToFirstColorInf()
+                        self.updateVertColors()
 
     def _collectInfLocks(self) -> None:
         """
@@ -1858,6 +1791,17 @@ class WeightsEditor(QtWidgets.QWidget):
     # Sub-class Events.
     #
 
+    def showEvent(self, showEvent: QtGui.QShowEvent) -> None:
+        """
+        Resizes the vertical splitter so the widget with buttons takes up the smallest space.
+
+        Args:
+            showEvent (QtGui.QShowEvent): The Qt show event.
+        """
+        super().showEvent(showEvent)
+        height = self._skinUtilsScrollArea.sizeHint().height()+5
+        self._vsplitter.setSizes([self.height()-height, height])
+
     def closeEvent(self, closeEvent: QtGui.QCloseEvent) -> None:
         """
         Handles cleanup operations when the tool is closed.
@@ -1959,6 +1903,13 @@ class WeightsEditor(QtWidgets.QWidget):
         """
         response = networkReply.readAll()
         data = json.loads(bytes(response))
+
+        # TODO: Need to better handle this.
+        # It's possible that the Git API exceeds its limit and won't return the data we need.
+        if "tag_name" not in data:
+            cmds.warning("Weights Editor - could not check for latest version from Git since requests have exceeded")
+            return
+
         latestVersion = data["tag_name"]
         isObsolete = utils.isVersionStringGreater(latestVersion, self.version)
 
@@ -2345,11 +2296,6 @@ class WeightsEditor(QtWidgets.QWidget):
         Args:
             index (ColorTheme): The index of the theme to activate.
         """
-        if index != ColorTheme.MaximumInfluences:
-            self._maxThemeAction.setChecked(index == ColorTheme.Max)
-            self._mayaThemeAction.setChecked(index == ColorTheme.Maya)
-            self._softimageThemeAction.setChecked(index == ColorTheme.Softimage)
-
         if self._showMaxInfsButton.isChecked():
             self._switchColorTheme(ColorTheme.MaximumInfluences)
         else:

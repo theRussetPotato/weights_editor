@@ -1,6 +1,8 @@
 QGroupBox {{
-    color: rgb(160, 160, 160);
+    color: rgb(170, 170, 170);
     font-weight: bold;
+    font-size: 10px;
+    padding-top: 10px;
 }}
 
 QMenuBar {{
@@ -35,6 +37,10 @@ QPushButton[empty="true"]:pressed {{
 
 QListView::item {{
     color: None;
+}}
+
+#seperatorWidget {{
+    margin: 10;
 }}
 
 #utilsFrame {{
